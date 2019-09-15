@@ -510,6 +510,9 @@ def setup_uarr_tpm(u_arr, thpar, dlon, dZ, mu_suns, min_iter=50,
         that must have been defined a priori. It must be satisfied that
         ``u_arr[i, j, k]`` is u of ``i``th colatitude, ``j``th time, and
         ``k``th depth.
+        In yssbtmpy, the axis 1 (time axis) has length of ``ntime + 1``,
+        so the code below will understand ``ntime = u_arr.shape[1] -
+        1``.
 
     thpar : float
         The thermal parameter (frequently denoted by Theta).
@@ -538,8 +541,6 @@ def setup_uarr_tpm(u_arr, thpar, dlon, dZ, mu_suns, min_iter=50,
     ncolat, ntimep1, ndepth = u_arr.shape
     ntime = ntimep1 - 1
 
-    # FIXME: Why does the parallel calc not working...?
-    #   2019-08-30 11:06:02 (KST: GMT+09:00) ysBach
     # For each colatitude, parallel calculation is possible!!!
     # So use numba's prange rather than range:
     for i_lat in nb.prange(ncolat):
@@ -563,7 +564,7 @@ def setup_uarr_tpm(u_arr, thpar, dlon, dZ, mu_suns, min_iter=50,
             discrep = 1.
             for i_iter in range(5000):
                 for i_t in range(ntime):
-                    for i_z in nb.prange(1, ndepth - 1):
+                    for i_z in range(1, ndepth - 1):
                         u_arr[i_lat, i_t + 1, i_z] = (
                             u_arr[i_lat, i_t, i_z]
                             + dlon/dZ**2
