@@ -77,5 +77,5 @@ C_F_SUN = (PI * SIGMA_SB / CC) * (R_SUN**2 * T_SUN**4) * (MICRON/AU)**2
 C_F_THER = (PI * SIGMA_SB / CC) * (MICRON)**2
 # ~ 5.9421e-28 in SI [N].
 C_A_SUN = (3 * SIGMA_SB / CC) * (4 * R_SUN**2 * T_SUN**4) * (MICRON / AU**2)
-C_A_THER =
+# C_A_THER =
 # a in um, r_h in au, rho(mass_den) in kg/m3
