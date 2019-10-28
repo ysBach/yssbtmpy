@@ -498,7 +498,7 @@ def newton_iter_tpm(newu0_init, newu1, thpar, dZ, mu_sun, Nmax=5000,
     return x1
 
 
-# Tested on 15"MBP2018: speed is by ~3 faster if parallel is used.
+# Tested on 15"MBP2018: speed is by ~10 times faster if parallel is used.
 @njit(parallel=True)
 def setup_uarr_tpm(u_arr, thpar, dlon, dZ, mu_suns, min_iter=50,
                    min_elevation_deg=0., permanent_shadow_u=0):
