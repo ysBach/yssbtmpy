@@ -7,6 +7,7 @@ longitude phi = 0 at midnight, 180˚ at midday.
 '''
 import numpy as np
 from astropy import units as u
+from numba import njit
 
 from .constants import C_F_SUN, C_F_THER, D2R, GG, PI, T_SUN
 from .relations import solve_rmrho
@@ -20,10 +21,12 @@ __all__ = ["MovingParticle"]
 CART2SPH_KW = dict(from_0=True, degree=True, to_lonlat=False)
 
 
+@njit()
 def sin_deg(x):
     return np.sin(x*D2R)
 
 
+@njit()
 def cos_deg(x):
     return np.cos(x*D2R)
 
@@ -77,6 +80,7 @@ class SmallBodyForceMixin:
         pos_new = pos + dt * vel_tmp
         vel_new = vel_tmp + dt/2 * acc_func(pos_new, append=True)
         return pos_new, vel_new
+
 
 class MovingParticle(SmallBodyForceMixin):
     def __init__(self, smallbody, radius=None, mass=None, mass_den=None,
@@ -150,13 +154,13 @@ class MovingParticle(SmallBodyForceMixin):
             def _func_Qprbar_sun(r_um):
                 return self.func_Qprbar(T_SUN, r_um)
             print("Getting Qprbar_sun function from func_Qprbar with "
-                    + f"T={T_SUN}.")
+                  + f"T={T_SUN}.")
             self.func_Qprbar_sun = _func_Qprbar_sun
 
         # Assign a single scalar value for Qprbar_sun:
         self.val_Qprbar_sun = self.func_Qprbar_sun(self.radius_um)
 
-    def set_initial_pos(self, colat, lon, height=1*u.cm):
+    def set_initial_pos(self, colat, lon, height=1*u.cm, vec_vel_init=None):
         ''' Sets the initial position
         Parameters
         ----------
@@ -170,13 +174,16 @@ class MovingParticle(SmallBodyForceMixin):
         r = self.r_sb_m + heignt_init_m
         th = change_to_quantity(colat, u.deg, to_value=True)
         ph = change_to_quantity(lon, u.deg, to_value=True)
-        vec_vel_init = np.array([-sin_deg(ph), cos_deg(ph), 0])
 
         # Only one-time usage so use this slow conversion function:
         self.trace_pos_xyz = [sph2cart(theta=th, phi=ph, r=r, degree=True)]
         self.trace_time = [0]
         self.trace_pos_sph = [np.array([r, th, ph])]
-        self.trace_vel_xyz = [self.vel_eq_mps*sin_deg(th)*vec_vel_init]
+        if vec_vel_init is None:
+            vec_vel_init = (self.vel_eq_mps
+                            * sin_deg(th)
+                            * np.array([-sin_deg(ph), cos_deg(ph), 0]))
+        self.trace_vel_xyz = [np.array(vec_vel_init)]
         self.trace_rvec = [np.array(self.trace_pos_xyz[0])/r]
         self.trace_height = [heignt_init_m]
         self.trace_heightpar = [1 / (1 + (heignt_init_m/self.r0_par_m)**2)]
@@ -260,7 +267,7 @@ class MovingParticle(SmallBodyForceMixin):
             dt=dt,
             acc_func=self.acc_func,
             acc_start=self.trace_a_all_xyz[-1]
-            )
+        )
         # TODO: Maybe put cart2sph at the ``wrapup``?
         newpos_sph = cart2sph(*newpos_xyz, **CART2SPH_KW)
         height = newpos_sph[0] - self.r_sb_m
@@ -337,7 +344,9 @@ class MovingParticle(SmallBodyForceMixin):
                     self.halt_iter = i
                     break
 
-
+            if nstep is not None:
+                if i >= nstep:
+                    break
 
     def wrapup(self):
         ''' Changes meaningful lists to numpy array
