@@ -239,7 +239,12 @@ class SmallBody():
         The attributes here are all non-dimensional!
         '''
         self.nlon = nlon
-        self.nlat = nlat
+        if nlat < 3:
+            warn("Currently nlat < 3 is not supported. "
+                 + "Internally I will use nlat = 3.")
+            self.nlat = 3
+        else:
+            self.nlat = nlat
         self.dlon = 2*PI/self.nlon
         self.dlat = PI/self.nlat
         self.Zmax = Zmax
@@ -311,7 +316,7 @@ class SmallBody():
         _mu_suns = self.mu_suns.copy()
         _mu_suns = np.append(_mu_suns, np.atleast_2d(_mu_suns[:, 0]).T, axis=1)
         self.spl_musun = RectBivariateSpline(colats_spl, phases_spl, _mu_suns,
-                                             kx=1, ky=3, s=0)
+                                             kx=1, ky=1, s=0)
 
         if self.thermal_par.value < 1.e-6:
             warn("Thermal parameter too small: Automatically set to 1.e-6.")
@@ -330,7 +335,7 @@ class SmallBody():
         self.spl_temp = RectBivariateSpline(colats_spl,
                                             phases_spl,
                                             u_arr[:, :, 0],
-                                            kx=1, ky=3, s=0)
+                                            kx=1, ky=1, s=0)
 
         # because there is one more "phase" value, erase it:
         u_arr = u_arr[:, :-1, :]
