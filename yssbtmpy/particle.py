@@ -238,10 +238,10 @@ class MovingParticle(SmallBodyForceMixin):
                                   emissivity=self.smallbody.emissivity.value,
                                   val_Qprbar=val_Qprbar_surf)
 
-        a_sun_vec = f_sun/self.mass_kg * self.f_sun_dir
-        a_ref_vec = f_ref/self.mass_kg * unit_r
-        a_ther_vec = f_ther/self.mass_kg * unit_r
-        a_grav_vec = -GG*self.m_sb_kg/r_sph**2 * unit_r
+        a_sun_vec = (f_sun/self.mass_kg) * self.f_sun_dir
+        a_ref_vec = (f_ref/self.mass_kg) * unit_r
+        a_ther_vec = (f_ther/self.mass_kg) * unit_r
+        a_grav_vec = -(GG*self.m_sb_kg/r_sph**2) * unit_r
         a_all_vec = a_sun_vec + a_ref_vec + a_ther_vec + a_grav_vec
 
         if append:
