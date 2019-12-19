@@ -288,7 +288,7 @@ class MovingParticle(SmallBodyForceMixin):
         #   sacrificed a bit of (computational) time and put these code
         #   lines here, not in the acc_func.
 
-    def propagate(self, dt, nstep, min_height=0*u.m, max_height=None,
+    def propagate(self, dt, nstep=None, min_height=0*u.m, max_height=None,
                   verbose=True):
         ''' Propagate the particle
         Parameters
@@ -320,6 +320,7 @@ class MovingParticle(SmallBodyForceMixin):
             self.max_height_m = (self.max_height.to(u.m)).value
 
         self.halt_code = None
+        self.halt_code_str = None
         i = 0
         while True:
             self._propagate(dt)
