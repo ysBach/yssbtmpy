@@ -93,8 +93,24 @@ class SmallBody():
         if ((self.r_hel_vec != np.array([None, None, None]))
                 and (self.r_obs_vec != np.array([None, None, None]))
                 and (self.aspect_ang is None)):
-            aux_cos = np.inner(self.r_hel_vec/self.r_hel, self.spin_vec)
-            self.aspect_ang = (180 - np.rad2deg(np.arccos(aux_cos)))*u.deg
+            r_hel_hat = self.r_hel_vec/self.r_hel
+            r_obs_hat = self.r_obs_vec/self.r_obs
+            aux_cos_sun = np.inner(r_hel_hat, self.spin_vec)
+            aux_cos_obs = np.inner(r_obs_hat, self.spin_vec)
+            self.aspect_ang = (180 - np.rad2deg(np.arccos(aux_cos_sun)))*u.deg
+            aspect_ang_obs = (180 - np.rad2deg(np.arccos(aux_cos_obs)))*u.deg
+            self.pos_sub_solar = (self.aspect_ang, 180*u.deg)
+            # ([(-r_obs) x (-r_sun)] \cdot spin) has opposite sign of
+            # dphi (the phi difference between the subsolar and
+            # subobserver points) :
+            r_obsxr_hel = np.cross(r_obs_hat, r_hel_hat)
+            sign = -1*np.sign(np.inner(r_obsxr_hel, self.spin_vec))
+            dphi = sign*np.arccos(1/np.tan(self.aspect_ang)
+                                  * 1/np.tan(aspect_ang_obs)
+                                  - np.cos(self.phase_ang)
+                                  )
+            phi_obs = (180*u.deg - dphi).to(u.deg)
+            self.pos_sub_obser = (aspect_ang_obs, phi_obs)
 
     def set_ecl(self, r_hel, hel_ecl_lon, hel_ecl_lat,
                 r_obs, obs_ecl_lon, obs_ecl_lat, alpha):
@@ -125,6 +141,7 @@ class SmallBody():
 
         try:
             self._set_aspect_angle()
+
         except TypeError:
             pass
 
@@ -443,11 +460,13 @@ class SmallBody():
             add_hdr(hdr, "EPSILON", self.emissivity, NOUNIT,
                     "Assumed constant emissivity at thermal region")
             add_hdr(hdr, "T_EQM", self.temp_eqm, u.K,
-                    "[K] Equilibrium subsolar temperature when ti=0")
+                    "[K] Equilibrium subsolar temperature when TI=0")
             add_hdr(hdr, "T_1AU", self.temp_eqm_1au, u.K,
                     "[K] T_EQM at r_hel=1AU")
-            add_hdr(hdr, "T_MAX", self.tempsurf.max(), u.K,
-                    "[K] Maximum calculated surface temperature")
+            add_hdr(hdr, "T_MAXEQM", self.tempsurf.max(), u.K,
+                    "[-] Maximum surface temperature in T_EQM unit")
+            add_hdr(hdr, "T_MAX", self.temp_eqm__K*self.tempsurf.max(), u.K,
+                    "[K] Maximum surface temperature")
             add_hdr(hdr, "TI", self.ti, TIU,
                     "[tiu] Thermal Inertia")
             add_hdr(hdr, "THETAPAR", self.thermal_par, NOUNIT,
