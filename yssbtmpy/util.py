@@ -7,6 +7,7 @@ from .constants import D2R, PI, R2D
 
 __all__ = ["change_to_quantity", "add_hdr", "parse_obj",
            "lonlat2cart", "sph2cart", "cart2sph", "M_ec2fs", "M_bf2ss",
+           "calc_mu_suns",
            "newton_iter_tpm", "setup_uarr_tpm"]
 
 
