@@ -56,6 +56,7 @@ class SmallBody():
         self.slope_par = None
         self.phase_int = None
         self.diam_eff = None
+        self.radi_eff = None
         self.p_vis = None
         self.a_bond = None
 
@@ -64,6 +65,7 @@ class SmallBody():
         self.bulk_mass_den = None
         # self.diam_equat = None
         self.acc_grav_equator = None
+        self.v_esc_equator = None
 
         # TPM physics related
         self.ti = None
@@ -162,9 +164,11 @@ class SmallBody():
                          + f"and will be overridden by {ps[p]}.")
 
         self.diam_eff = ps["diam_eff"]
+        self.radi_eff = self.diam_eff/2
         self.mass = ps["mass"]
         self.bulk_mass_den = ps["mass_den"]
-        self.acc_grav_equator = GG_Q*self.mass/(self.diam_eff/2)**2
+        self.acc_grav_equator = GG_Q*self.mass/(self.radi_eff)**2
+        self.v_esc_equator = np.sqrt(2*GG_Q*self.mass/(self.radi_eff)).si
 
     def set_optical(self, hmag_vis=None, slope_par=None, diam_eff=None,
                     p_vis=None, a_bond=None, phase_int=None):
@@ -207,6 +211,7 @@ class SmallBody():
         self.a_bond = ps["a_bond"]
         self.slope_par = ps["slope_par"]
         self.diam_eff = ps["diam_eff"]
+        self.radi_eff = self.diam_eff/2
         self.hmag_vis = ps["hmag_vis"]
         self.phase_int = ps["phase_int"]
 
@@ -505,7 +510,9 @@ class SmallBody():
             add_hdr(hdr, "ABS_MAG", self.hmag_vis, NOUNIT,
                     "[mag] Absolute magnitude in V-band")
             add_hdr(hdr, "DIAM_EFF", self.diam_eff, u.km,
-                    "[km] Effective diameter")
+                    "[km] Effective diameter (twice RADI_EFF)")
+            add_hdr(hdr, "RADI_EFF", self.radi_eff, u.km,
+                    "[km] Effective radius (half DIAM_EFF)")
 
             # WCS: image XY -> Longitude (0, 360)/Latitude (-90, +90)
             hdr["CTYPE1"] = ("LINEAR",
