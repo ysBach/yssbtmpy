@@ -95,22 +95,27 @@ class SmallBody():
                 and (self.aspect_ang is None)):
             r_hel_hat = self.r_hel_vec/self.r_hel
             r_obs_hat = self.r_obs_vec/self.r_obs
-            aux_cos_sun = np.inner(r_hel_hat, self.spin_vec)
-            aux_cos_obs = np.inner(r_obs_hat, self.spin_vec)
-            self.aspect_ang = (180 - np.rad2deg(np.arccos(aux_cos_sun)))*u.deg
-            aspect_ang_obs = (180 - np.rad2deg(np.arccos(aux_cos_obs)))*u.deg
-            self.pos_sub_solar = (self.aspect_ang, 180*u.deg)
+            self.aspect_ang = np.rad2deg(np.arccos(
+                np.inner(-1*r_hel_hat, self.spin_vec)))*u.deg
+            # aux_cos_sun = np.inner(r_hel_hat, self.spin_vec)
+            # self.aspect_ang = (180-np.rad2deg(np.arccos(aux_cos_sun)))*u.deg
+            self.aspect_ang_obs = np.rad2deg(np.arccos(
+                np.inner(-1*r_obs_hat, self.spin_vec)))*u.deg
+            # aux_cos_obs = np.inner(r_obs_hat, self.spin_vec)
+            # aspect_ang_obs = (180-np.rad2deg(np.arccos(aux_cos_obs)))*u.deg
             # ([(-r_obs) x (-r_sun)] \cdot spin) has opposite sign of
             # dphi (the phi difference between the subsolar and
             # subobserver points) :
-            r_obsxr_hel = np.cross(r_obs_hat, r_hel_hat)
-            sign = -1*np.sign(np.inner(r_obsxr_hel, self.spin_vec))
-            dphi = sign*np.arccos(1/np.tan(self.aspect_ang)
-                                  * 1/np.tan(aspect_ang_obs)
-                                  - np.cos(self.phase_ang)
-                                  )
-            phi_obs = (180*u.deg - dphi).to(u.deg)
-            self.pos_sub_obser = (aspect_ang_obs, phi_obs)
+            sign = -1*np.sign(np.inner(np.cross(r_obs_hat, r_hel_hat),
+                                       self.spin_vec))
+            cc = np.cos(self.aspect_ang) * np.cos(self.aspect_ang_obs)
+            ss = np.sin(self.aspect_ang) * np.sin(self.aspect_ang_obs)
+            dphi = np.arccos((cc - np.cos(self.phase_ang))/ss)
+            phi_obs = (180*u.deg + sign*dphi).to(u.deg)
+            if np.isnan(phi_obs):
+                raise ValueError("Oops T___T")
+            self.pos_sub_sol = (self.aspect_ang, 180*u.deg)
+            self.pos_sub_obs = (self.aspect_ang_obs, phi_obs)
 
     def set_ecl(self, r_hel, hel_ecl_lon, hel_ecl_lat,
                 r_obs, obs_ecl_lon, obs_ecl_lat, alpha):
