@@ -74,18 +74,19 @@ def h2rot_omega(hour):
 def solve_Gq(slope_par=None, phase_int=None, classical=False,
              return_quantity=True):
     ''' Calculates the phase integral of IAU HG system.
+
     Note
     ----
-    In the Appendix of Bowell et al. (1989) in Asteroids II (Binzel ed.)
-    pp.524-556, the phase integral is given as
+    In the Appendix of Bowell et al. (1989) in Asteroids II (Binzel ed.) pp.524-556, the phase integral
+    is given as
     .. math::
         q = 0.290 + 0.684 G \quad (0 \le G \le 1)
-    in Eq (A7). But as first pointed out in Myhrvold (2016), PASP, 128,
-    045004(d5004), this is not true, but it should be
+    in Eq (A7). But as first pointed out in Myhrvold (2016), PASP, 128, 045004(d5004), this is not
+    true, but it should be
     .. math::
         q = 0.286 + 0.656 G
-    and I (Y. P. Bach) also confirmed it. Thus, it is more sensical to
-    use this new one than the classically used (previous) one.
+    and I (Y. P. Bach) also confirmed it. Thus, it is more sensical to use this new one than the
+    classically used (previous) one.
 
     Parameters
     ----------
@@ -96,11 +97,12 @@ def solve_Gq(slope_par=None, phase_int=None, classical=False,
         The phase integral.
 
     classical : bool, optional.
-        Whether to use the classical (erroneous) formula which have been
-        used for decades. Default is ``False``.
+        Whether to use the classical (erroneous) formula which have been used for decades.
+        Default is `False`.
 
     return_quantity : bool, optional.
-        Whether to return in ~astropy.Quantity type. Defalut is ``True``
+        Whether to return in ~astropy.Quantity type.
+        Defalut is `True`
 
     Return
     ------
@@ -143,16 +145,16 @@ def solve_pAG(p_vis=None, a_bond=None, slope_par=None, classical=False,
     ''' Solves the albedo relations from IAU H, G magnitude system.
     Note
     ----
-    In the Appendix of Bowell et al. (1989) in Asteroids II (Binzel ed.)
-    pp.524-556, the phase integral is given as
+    In the Appendix of Bowell et al. (1989) in Asteroids II (Binzel ed.) pp.524-556, the phase integral
+    is given as
     .. math::
         q = 0.290 + 0.684 G \quad (0 \le G \le 1)
-    in Eq (A7). But as first pointed out in Myhrvold (2016), PASP, 128,
-    045004(d5004), this is not true, but it should be
+    in Eq (A7). But as first pointed out in Myhrvold (2016), PASP, 128, 045004(d5004), this is not
+    true, but it should be
     .. math::
         q = 0.286 + 0.656 G
-    and I (Y. P. Bach) also confirmed it. Thus, it is more sensical to
-    use this new one than the classically used (previous) one.
+    and I (Y. P. Bach) also confirmed it. Thus, it is more sensical to use this new one than the
+    classically used (previous) one.
 
     Parameters
     ----------
@@ -163,11 +165,11 @@ def solve_pAG(p_vis=None, a_bond=None, slope_par=None, classical=False,
         The slope parameter (G parameter) in the IAU HG system.
 
     classical : bool, optional.
-        Whether to use the classical (erroneous) formula which have been
-        used for decades. Default is ``False``.
+        Whether to use the classical (erroneous) formula which have been used for decades.
+        Default is `False`.
 
     return_quantity : bool, optional.
-        Whether to return in ~astropy.Quantity type. Defalut is ``True``
+        Whether to return in ~astropy.Quantity type. Defalut is `True`
 
     Return
     ------
@@ -221,46 +223,39 @@ def solve_pDH(p_vis=None, diam_eff=None, hmag_vis=None, d0=1329,
     The equation
     .. math::
         D = \frac{D_0}{\sqrt{p_\mathrm{V}}} \times 10^{-H_\mathrm{V}/5}
-    is used. Here, :math:`D_0 = 2 \mathrm{au} \times 10^{-V_\odot/5}`,
-    where :math:`V_\odot` is the apparent magnitude of the Sun in
-    Johnson-Cousins V-band filter (-26.74). The equation is derived such
-    that the visual magnitude of a circular Lambertian plate of diameter
-    D and geometric albedo p_vis at perfect opposition to be the same as
-    hmag_vis. This diameter is called the effective diameter.
-    Shape-modelers sometimes confuse this diameter with the
-    volume-equivalent diameter, but they are not necessarily identical
-    (although the difference must not be significant).
+    is used. Here, :math:`D_0 = 2 \mathrm{au} \times 10^{-V_\odot/5}`, where :math:`V_\odot` is the
+    apparent magnitude of the Sun in Johnson-Cousins V-band filter (-26.74). The equation is derived
+    such that the visual magnitude of a circular Lambertian plate of diameter D and geometric albedo
+    p_vis at perfect opposition to be the same as hmag_vis. This diameter is called the effective
+    diameter. Shape-modelers sometimes confuse this diameter with the volume-equivalent diameter, but
+    they are not necessarily identical (although the difference must not be significant).
 
-    It is first used in Fowler and Chillemi (1992), IRAS Minor Planet
-    Surv., ed. E. F. Tedesco et al. (Phillips Laboratory Tech. Rep.
-    No.PL-TR-92-2049), 17. There it is defined that
-    :math:`D_0 = 1329 \mathrm{km}`, while the modern measurements would
-    give 1343 km, but the uncertainty in solar magnitude will tune it by
-    0.1% level, thus 1329 km is still in the error range, and thus there
-    is no much need to update the value "1329". But to leave a
-    flexibility, I set d0 an input paremeter here.
+    It is first used in Fowler and Chillemi (1992), IRAS Minor Planet Surv., ed. E. F. Tedesco et al.
+    (Phillips Laboratory Tech. Rep. No.PL-TR-92-2049), 17. There it is defined that :math:`D_0 = 1329
+    \mathrm{km}`, while the modern measurements would give 1343 km, but the uncertainty in solar
+    magnitude will tune it by 0.1% level, thus 1329 km is still in the error range, and thus there is
+    no much need to update the value "1329". But to leave a flexibility, I set d0 an input paremeter
+    here.
 
     Parameters
     ----------
     p_vis, diam_eff, hmag_vis : float, ~Quantity, or array-like of such
-        Geometric albdeo, effective diameter in km, and the visual
-        absolute magnitude. Two and only two of these three must be
-        given. if not Quantity, they must be dimensionless, km, and
-        magnitude, respectively.
+        Geometric albdeo, effective diameter in km, and the visual absolute magnitude. Two and only two
+        of these three must be given. if not Quantity, they must be dimensionless, km, and magnitude,
+        respectively.
 
     d0 : float, Quantity, optional.
-        The effective diameter when geometric albedo is unity and the
-        absolute magnitude is zero (in km or `Quantity` convertable to
-        it).
+        The effective diameter when geometric albedo is unity and the absolute magnitude is zero (in km
+        or `Quantity` convertable to it).
 
     return_quantity : bool, optional.
-        Whether to return in ~astropy.Quantity type. Defalut is ``True``
+        Whether to return in ~astropy.Quantity type. Defalut is `True`
 
     Return
     ------
     a : float or array-like
-        One of geometric albdeo, effective diameter in km, or the visual
-        absolute magnitude, depending on the input parmeters.
+        One of geometric albdeo, effective diameter in km, or the visual absolute magnitude, depending
+        on the input parmeters.
     '''
 
     pdict = dict(p_vis=p_vis, diam_eff=diam_eff, hmag_vis=hmag_vis)
@@ -302,9 +297,8 @@ def solve_temp_eqm(temp_eqm=None, a_bond=None, eta_beam=None, r_hel=None,
     ''' Solve the equilibrium temperature formula
     Note
     ----
-    Identical to the subsolar temperature in STM/NEATM, which assume
-    instanteneous thermal equilibrium (i.e., null thermal inertia). But this
-    is not the subsolar temperature in TPM.
+    Identical to the subsolar temperature in STM/NEATM, which assume instanteneous thermal equilibrium
+    (i.e., null thermal inertia). But this is not the subsolar temperature in TPM.
     If ``rh__au = 1``, temp_eqm here is identical to T_1.
 
     Parameters
@@ -322,11 +316,10 @@ def solve_temp_eqm(temp_eqm=None, a_bond=None, eta_beam=None, r_hel=None,
         The heliocentric distance of the body (in the unit of au if float).
 
     emissivity : float or array-like
-        The (spectrum averaged) emissivity. It is conventionally fixed to
-        0.900 in thermal modeling.
+        The (spectrum averaged) emissivity. It is conventionally fixed to 0.900 in thermal modeling.
 
     return_quantity : bool, optional.
-        Whether to return in ~astropy.Quantity type. Defalut is ``True``
+        Whether to return in ~astropy.Quantity type. Defalut is `True`
     '''
     pdict = dict(temp_eqm=temp_eqm, a_bond=a_bond,
                  eta_beam=eta_beam, r_hel=r_hel, emissivity=emissivity)
@@ -374,6 +367,7 @@ def solve_temp_eqm(temp_eqm=None, a_bond=None, eta_beam=None, r_hel=None,
 def solve_thermal_par(thermal_par=None, ti=None, rot_period=None,
                       temp_eqm=None, emissivity=None, return_quantity=True):
     ''' Solves the thermal parameter (Theta) equation
+
     Parameters
     ----------
     thermal_par : float or array-like or Quantity
@@ -389,11 +383,10 @@ def solve_thermal_par(thermal_par=None, ti=None, rot_period=None,
         The subsolar equilibrium temperature (see ~solve_temp_eqm).
 
     emissivity : float or array-like or Quantity
-        The (spectrum averaged) emissivity. It is conventionally fixed to 0.900
-        in thermal modeling.
+        The (spectrum averaged) emissivity. It is conventionally fixed to 0.900 in thermal modeling.
 
     return_quantity : bool, optional.
-        Whether to return in ~astropy.Quantity type. Defalut is ``True``
+        Whether to return in ~astropy.Quantity type. Defalut is `True`
     '''
     pdict = dict(thermal_par=thermal_par, ti=ti, rot_period=rot_period,
                  temp_eqm=temp_eqm, emissivity=emissivity)
@@ -446,8 +439,8 @@ def solve_rmrho(radius=None, mass=None, mass_den=None, return_quantity=True):
     Parameters
     ----------
     radius, mass, mass_den : float, Quantity, or array-like of such, optional
-        The radius, mass, and the mass density of the homogeneous sphere to be
-        solved. All in SI unit if not Quantity.
+        The radius, mass, and the mass density of the homogeneous sphere to be solved. All in SI unit
+        if not Quantity.
     '''
     pdict = dict(radius=radius, mass=mass, mass_den=mass_den)
     udict = dict(radius=u.m, mass=u.kg, mass_den=u.kg/u.m**3)
@@ -480,11 +473,12 @@ def solve_rmrho(radius=None, mass=None, mass_den=None, return_quantity=True):
 
 def solve_pw(rot_period=None, rot_omega=None, return_quantity=True):
     ''' Solves the rotational period and angular speed equation.
+
     Parameters
     ----------
     rot_period, rot_omega : float, Quantity, or array-like of such, optional.
-        The rotational period and rotational angular speed to be solved. If
-        not quantity, they are interpreted as SI units (seconds and rad/s).
+        The rotational period and rotational angular speed to be solved. If not quantity, they are
+        interpreted as SI units (seconds and rad/s).
     '''
     pdict = dict(rot_period=rot_period, rot_omega=rot_omega)
     udict = dict(rot_period=u.s, rot_omega=1/u.s)

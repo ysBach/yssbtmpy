@@ -5,6 +5,7 @@ import numpy as np
 from astropy import units as u
 from astropy.io import fits
 from scipy.interpolate import RectBivariateSpline
+from astropy.coordinates import SkyCoord, HeliocentricMeanEcliptic
 
 from .constants import GG_Q, NOUNIT, PI, R2D, TIU
 from .relations import (solve_Gq, solve_pAG, solve_pDH, solve_rmrho,
@@ -23,6 +24,48 @@ class SmallBody():
     ''' Spherical Small Body class
     Specified by physical parameters that are the body's
     characteristic, not time-variable ones (e.g., ephemerides).
+
+    Example
+    -------
+    >>> test = tm.SmallBody()
+    >>> test.set_ecl(
+    >>>     r_hel=1.5, r_obs=0.5, alpha=0,
+    >>>     hel_ecl_lon=0, hel_ecl_lat=0,
+    >>>     obs_ecl_lon=0, obs_ecl_lat=0
+    >>> )
+    >>> test.set_spin(
+    >>>     spin_ecl_lon=10, spin_ecl_lat=-90, rot_period=1
+    >>> )
+    >>> test.aspect_ang, test.aspect_ang_obs
+    Test by varying spin vector. In all cases tested below, calculation
+    matched with desired values:
+        ----------input-----------  ---------desired----------
+        spin_ecl_lon  spin_ecl_lat  aspect_ang  aspect_ang_obs
+        0             0             180         180
+        +- 30, 330    0             150         150
+        0             +-30          150         150
+        any value     +-90          90          90
+
+    >>> test = tm.SmallBody()
+    >>> test.set_ecl(
+    >>>     r_hel=1.414, r_obs=1, alpha=45,
+    >>>     hel_ecl_lon=45, hel_ecl_lat=0,
+    >>>     obs_ecl_lon=90, obs_ecl_lat=0
+    >>> )
+    >>> test.set_spin(
+    >>>     spin_ecl_lon=330, spin_ecl_lat=0, rot_period=1
+    >>> )
+    >>> test.aspect_ang, test.aspect_ang_obs
+    Test by varying spin vector. In all cases tested below, calculation
+    matched with desired values:
+        ----------input-----------  ---------desired----------
+        spin_ecl_lon  spin_ecl_lat  aspect_ang  aspect_ang_obs
+        0             0             135         90
+        + 30          0             165         120
+        - 30, 330     0             105         60
+        0             +-30          127.76      90
+        any value     +-90          90          90
+
     '''
 
     # TODO: What if a user input values with Quantity?
@@ -95,12 +138,17 @@ class SmallBody():
                 and (self.aspect_ang is None)):
             r_hel_hat = self.r_hel_vec/self.r_hel
             r_obs_hat = self.r_obs_vec/self.r_obs
-            self.aspect_ang = np.rad2deg(np.arccos(
-                np.inner(-1*r_hel_hat, self.spin_vec)))*u.deg
+            # r_obs_hat = lonlat2cart(self.obs_ecl_helio.lon,
+            #                         self.obs_ecl_helio.lat)
+
+            asp1 = np.rad2deg(np.arccos(np.inner(-1*r_hel_hat, self.spin_vec)))
+            asp2 = np.rad2deg(np.arccos(np.inner(-1*r_obs_hat, self.spin_vec)))
+
+            toQ = dict(to_value=False)
+            self.aspect_ang = change_to_quantity(asp1, u.deg, **toQ)
             # aux_cos_sun = np.inner(r_hel_hat, self.spin_vec)
             # self.aspect_ang = (180-np.rad2deg(np.arccos(aux_cos_sun)))*u.deg
-            self.aspect_ang_obs = np.rad2deg(np.arccos(
-                np.inner(-1*r_obs_hat, self.spin_vec)))*u.deg
+            self.aspect_ang_obs = change_to_quantity(asp2, u.deg, **toQ)
             # aux_cos_obs = np.inner(r_obs_hat, self.spin_vec)
             # aspect_ang_obs = (180-np.rad2deg(np.arccos(aux_cos_obs)))*u.deg
             # ([(-r_obs) x (-r_sun)] \cdot spin) has opposite sign of
@@ -110,7 +158,12 @@ class SmallBody():
                                        self.spin_vec))
             cc = np.cos(self.aspect_ang) * np.cos(self.aspect_ang_obs)
             ss = np.sin(self.aspect_ang) * np.sin(self.aspect_ang_obs)
-            dphi = np.arccos((cc - np.cos(self.phase_ang))/ss)
+            _arg = ((cc - np.cos(self.phase_ang))/ss).value
+            if _arg < -1:
+                _arg += 1.e-10
+            elif _arg > +1:
+                _arg -= 1.e-10
+            dphi = change_to_quantity(np.arccos(_arg), u.deg, **toQ)
             phi_obs = (180*u.deg + sign*dphi).to(u.deg)
             if np.isnan(phi_obs):
                 raise ValueError("Oops T___T")
@@ -118,15 +171,38 @@ class SmallBody():
             self.pos_sub_obs = (self.aspect_ang_obs, phi_obs)
 
     def set_ecl(self, r_hel, hel_ecl_lon, hel_ecl_lat,
-                r_obs, obs_ecl_lon, obs_ecl_lat, alpha):
+                r_obs, obs_ecl_lon, obs_ecl_lat, alpha,
+                ephem_equinox='J2000.0', transform_equinox='J2000.0'):
+        '''
+        Note
+        ----
+        The ``ObsEcLon`` and ``ObsEcLat`` from JPL HORIZONS are in the
+        equinox of the observing time, not J2000.0. Although this
+        difference will not give large uncertainty, this may be
+        uncomfortable for some application purposes. In this case, give
+        the ephemerides date (such as
+        ``ephem_equinox=Time(eph['datetime_jd'], format='jd')``) and the
+        equinox of ``hEcl-Lon`` and ``hEcl-Lat`` is calculated (as of
+        2019, it is J2000.0, so ``transform_equinox="J2000.0"``).
+        '''
         toQ = dict(to_value=False)
         self.r_hel = change_to_quantity(r_hel, u.au, **toQ)
         self.r_obs = change_to_quantity(r_obs, u.au, **toQ)
         self.hel_ecl_lon = change_to_quantity(hel_ecl_lon, u.deg, **toQ)
         self.hel_ecl_lat = change_to_quantity(hel_ecl_lat, u.deg, **toQ)
+        # The obs_ecl values from HORIZONS are
         self.obs_ecl_lon = change_to_quantity(obs_ecl_lon, u.deg, **toQ)
         self.obs_ecl_lat = change_to_quantity(obs_ecl_lat, u.deg, **toQ)
         self.phase_ang = change_to_quantity(alpha, u.deg, **toQ)
+
+        # helecl_ref = HeliocentricMeanEcliptic(equinox=transform_equinox)
+        # obsecl_geo = SkyCoord(
+        #     self.obs_ecl_lon,
+        #     self.obs_ecl_lat,
+        #     self.r_obs,
+        #     equinox=ephem_equinox
+        # )
+        # self.obs_ecl_helio = obsecl_geo.transform_to(helecl_ref)
 
         try:
             vec = lonlat2cart(lon=self.hel_ecl_lon,
@@ -312,9 +388,9 @@ class SmallBody():
         Parameters
         ----------
         full : bool, optional.
-            If ``True``, the temperature beneath the surface is also
+            If `True`, the temperature beneath the surface is also
             saved as ``self.tempfull`` as well as the surface temperatue
-            as ``self.tempsurf``. If ``False`` (default), only the
+            as ``self.tempsurf``. If `False` (default), only the
             surface tempearatue is saved as ``self.tempsurf``.
         '''
         phases = np.arange(0, 2*PI, self.dlon)*u.rad

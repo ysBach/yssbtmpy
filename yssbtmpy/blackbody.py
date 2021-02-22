@@ -13,10 +13,10 @@ def B_lambda(wavelen, temperature):
     ----------
     wavelen : float or ~Quantity, ~numpy.ndarray of such.
         The wavelengths. In meter unit if not Quantity.
+
     temperature : float
-        The temperature. In Kelvin unit if not Quantity. For specific
-        purpose, you can give it in an ndarray format, but not
-        recommended.
+        The temperature. In Kelvin unit if not Quantity. For specific purpose, you can give it in an
+        ndarray format, but not recommended.
 
     Return
     ------
@@ -33,14 +33,15 @@ def B_lambda(wavelen, temperature):
 
 def b_lambda(wavelen, temperature):
     ''' Calcualtes the small b function [1/wavelen].
+
     Parameters
     ----------
     wavelen : float or ~Quantity, ~numpy.ndarray of such.
         The wavelengths. In meter unit if not Quantity.
+
     temperature : float or ~Quantity
-        The temperature. In Kelvin unit if not Quantity. For specific
-        purpose, you can give it in an ndarray format, but not
-        recommended.
+        The temperature. In Kelvin unit if not Quantity. For specific purpose, you can give it in an
+        ndarray format, but not recommended.
 
     Return
     ------

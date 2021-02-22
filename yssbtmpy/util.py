@@ -13,17 +13,19 @@ __all__ = ["change_to_quantity", "add_hdr", "parse_obj",
 
 def change_to_quantity(x, desired='', to_value=False):
     ''' Change the non-Quantity object to astropy Quantity.
+
     Parameters
     ----------
     x : object changable to astropy Quantity
-        The input to be changed to a Quantity. If a Quantity is given,
-        ``x`` is changed to the ``desired``, i.e., ``x.to(desired)``.
+        The input to be changed to a Quantity. If a Quantity is given, ``x`` is changed to the
+        ``desired``, i.e., ``x.to(desired)``.
+
     desired : str or astropy Unit
         The desired unit for ``x``.
+
     to_value : bool, optional.
-        Whether to return as scalar value. If ``True``, just the
-        value(s) of the ``desired`` unit will be returned after
-        conversion.
+        Whether to return as scalar value. If `True`, just the value(s) of the ``desired`` unit will be
+        returned after conversion.
 
     Return
     ------
@@ -31,9 +33,8 @@ def change_to_quantity(x, desired='', to_value=False):
 
     Note
     ----
-    If Quantity, transform to ``desired``. If ``desired = None``, return
-    it as is. If not Quantity, multiply the ``desired``. ``desired =
-    None``, return ``x`` with dimensionless unscaled unit.
+    If Quantity, transform to ``desired``. If ``desired = None``, return it as is. If not Quantity,
+    multiply the ``desired``. ``desired = None``, return ``x`` with dimensionless unscaled unit.
     '''
     def _copy(xx):
         try:
@@ -78,7 +79,7 @@ def change_to_quantity(x, desired='', to_value=False):
     desired : str or astropy Unit
         The desired unit for ``x``.
     to_value : bool, optional.
-        Whether to return as scalar value. If ``True``, just the
+        Whether to return as scalar value. If `True`, just the
         value(s) of the ``desired`` unit will be returned after
         conversion.
 
@@ -136,6 +137,7 @@ def add_hdr(header, key, val, desired_unit='', comment=None):
 
 def parse_obj(objfile):
     ''' Parses the .obj file.
+
     Parameters
     ----------
     objfile : path-like
@@ -175,21 +177,18 @@ def parse_obj(objfile):
 
 def lonlat2cart(lon, lat, degree=True, r=1):
     ''' Converts the lon/lat coordinate to Cartesian coordinate.
+
     Parameters
     ----------
     lon, lat : float or ~astropy.Quantity
-        The longitude and latitude. If float, the unit is understood
-        from ``degree``.
-        Note that the latitude here is not the usual "theta"
-        (``theta = 90 - lat``).
+        The longitude and latitude. If float, the unit is understood from ``degree``.
+        Note that the latitude here is not the usual "theta" (``theta = 90 - lat``).
 
     degree : bool, optional
-        Whether the input ``lon, lat`` are degrees (Default) or radian
-        (if ``degree=False``).
+        Whether the input ``lon, lat`` are degrees (Default) or radian (if ``degree=False``).
 
     r : float, optional.
-        The radial distance from the origin. Defaults to ``1``, i.e.,
-        the unit vector will be returned.
+        The radial distance from the origin. Defaults to ``1``, i.e., the unit vector will be returned.
 
     Return
     ------
@@ -209,19 +208,18 @@ def lonlat2cart(lon, lat, degree=True, r=1):
 
 def sph2cart(theta, phi, degree=True, r=1):
     ''' Converts the spherical coordinate to Cartesian coordinate.
+
     Parameters
     ----------
     theta, phi : float or ~astropy.Quantity
-        The theta and phi of the ``(r, theta, phi)`` notation. If float,
-        the unit is understood from ``degree``.
+        The theta and phi of the ``(r, theta, phi)`` notation. If float, the unit is understood from
+        ``degree``.
 
     degree : bool, optional
-        Whether the input ``theta, phi`` are degrees (Default) or radian
-        (if ``degree=False``).
+        Whether the input ``theta, phi`` are degrees (Default) or radian (if ``degree=False``).
 
     r : float, or `~astropy.Quantity`, optional.
-        The radial distance from the origin. Defaults to ``1``, i.e.,
-        the unit vector will be returned.
+        The radial distance from the origin. Defaults to ``1``, i.e., the unit vector will be returned.
 
     Return
     ------
@@ -256,20 +254,18 @@ def cart2sph(x, y, z, from_0=True, degree=True, to_lonlat=False):
         The Cartesian (x, y, z) coordinate.
 
     degree : bool, optional.
-        If ``False``, the returned theta and phi will be in radian. If
-        ``True``(default), those will be in degrees unit.
+        If `False`, the returned theta and phi will be in radian. If `True`(default), those will be
+        in degrees unit.
 
     from_0: bool, optional
-        If ``True`` (Default), the ``phi`` (or ``lon``) will be in ``0``
-        to ``PI`` radian range. If ``False``, i.e., if ``phi`` (or
-        ``lon``) starts from ``-PI``, it will be in ``-PI`` to ``+PI``
+        If `True` (Default), the ``phi`` (or ``lon``) will be in ``0`` to ``PI`` radian range. If
+        `False`, i.e., if ``phi`` (or ``lon``) starts from ``-PI``, it will be in ``-PI`` to ``+PI``
         range.
 
     Return
     ------
     a: 1-d array
-        The ``(r, theta, phi)`` or ``(r, lon=phi, lat=90deg - theta)``
-        array.
+        The ``(r, theta, phi)`` or ``(r, lon=phi, lat=90deg - theta)`` array.
     '''
     r = np.sqrt(x**2 + y**2 + z**2)
     if degree:
@@ -293,27 +289,25 @@ def cart2sph(x, y, z, from_0=True, degree=True, to_lonlat=False):
 
 def M_ec2fs(r_hel_vec, spin_vec):
     ''' The conversion matrix to convert ecliptic to frame system.
-    Note
-    ----
-    Adopted from Sect. 2.4. of Davidsson and Rickman (2014), Icarus,
-    243, 58. If ``a`` is a vector in ecliptic coordinate (in Cartesian
-    (x, y, z)), ``m @ a`` will give the components of vector ``a`` in
-    frame system, where ``m`` is the result of this function.
 
     Parameters
     ----------
     r_hel_vec : 1-d array
-        The Cartesian coordinate of the asteroid in (heliocentric)
-        ecliptic coordinate.
+        The Cartesian coordinate of the asteroid in (heliocentric) ecliptic coordinate.
 
     spin_vec : 1-d array
-        The Cartesian coordinate of the spin vector of the asteroid in
-        ecliptic coordinate.
+        The Cartesian coordinate of the spin vector of the asteroid in ecliptic coordinate.
 
     Return
     ------
     m : 3-by-3 matrix
         The matrix that converts ecliptic coordinate to frame system.
+
+    Note
+    ----
+    Adopted from Sect. 2.4. of Davidsson and Rickman (2014), Icarus, 243, 58. If ``a`` is a vector in
+    ecliptic coordinate (in Cartesian (x, y, z)), ``m @ a`` will give the components of vector ``a`` in
+    frame system, where ``m`` is the result of this function.
     '''
     Z_fs_ec = spin_vec.copy()
     Y_fs_ec = np.cross(spin_vec, -r_hel_vec)
@@ -332,12 +326,6 @@ def M_ec2fs(r_hel_vec, spin_vec):
 
 def M_fs2bf(phase):
     ''' The conversion matrix to convert frame system to body-fixed frame.
-    Note
-    ----
-    Adopted from Sect. 2.4. of Davidsson and Rickman (2014), Icarus,
-    243, 58. If ``a`` is a vector in frame system (in Cartesian (x, y,
-    z)), ``m @ a`` will give the components of vector ``a`` in
-    body-fixed frame, where ``m`` is the result of this function.
 
     Parameters
     ----------
@@ -347,8 +335,13 @@ def M_fs2bf(phase):
     Return
     ------
     m : 3-by-3 matrix
-        The matrix that converts frame system coordinate to body-fixed
-        frame.
+        The matrix that converts frame system coordinate to body-fixed frame.
+
+    Note
+    ----
+    Adopted from Sect. 2.4. of Davidsson and Rickman (2014), Icarus, 243, 58. If ``a`` is a vector in
+    frame system (in Cartesian (x, y, z)), ``m @ a`` will give the components of vector ``a`` in
+    body-fixed frame, where ``m`` is the result of this function.
     '''
     c = np.cos(phase)
     s = np.sin(phase)
@@ -358,26 +351,23 @@ def M_fs2bf(phase):
 
 def M_bf2ss(colat):
     ''' The conversion matrix to convert body-fixed frame to surface system.
-    Note
-    ----
-    Adopted from Sect. 2.4. of Davidsson and Rickman (2014), Icarus,
-    243, 58. If ``a`` is vector in body-fixed frame (in Cartesian (x, y,
-    z)), ``m @ a`` will give the components of vector ``a`` in surface
-    system, where ``m`` is the result of this function.
 
     Parameters
     ----------
     colat : float or ~astropy.Quantity
-        The co-latitude of the surface (in degrees unit if float).
-        Co-latitude is the angle between the pole (spin) vector and the
-        normal vector of the surface of interest.
-
+        The co-latitude of the surface (in degrees unit if float). Co-latitude is the angle between the
+        pole (spin) vector and the normal vector of the surface of interest.
 
     Return
     ------
     m : 3-by-3 matrix
-        The matrix that converts body-fixed coordinate to surface
-        system.
+        The matrix that converts body-fixed coordinate to surface system.
+
+    Note
+    ----
+    Adopted from Sect. 2.4. of Davidsson and Rickman (2014), Icarus, 243, 58. If ``a`` is vector in
+    body-fixed frame (in Cartesian (x, y, z)), ``m @ a`` will give the components of vector ``a`` in
+    surface system, where ``m`` is the result of this function.
     '''
     colat__deg = change_to_quantity(colat, 'deg', to_value=True)
 
@@ -389,46 +379,48 @@ def M_bf2ss(colat):
 
 def calc_mu_suns(r_hel_vec, spin_vec, phases, colats, full=False):
     ''' The conversion matrix to convert body-fixed frame to surface system.
-    Note
-    ----
-    Adopted from Sect. 2.4. of Davidsson and Rickman (2014), Icarus,
-    243, 58. If ``a`` is vector in body-fixed frame (in Cartesian (x, y,
-    z)), ``m @ a`` will give the components of vector ``a`` in surface
-    system, where ``m`` is the result of this function.
 
     Parameters
     ----------
     r_hel_vec, spin_vec : 1-D array
         The rh vector and spin vectors, respectively.
+
     phases : float or array of float or ~astropy.Quantity
         The phase values (in radian unit if floats)
+
     colats : float or array of float or ~astropy.Quantity
-        The co-latitude of the surface (in degrees unit if float).
-        Co-latitude is the angle between the pole (spin) vector and the
-        normal vector of the surface of interest.
+        The co-latitude of the surface (in degrees unit if float). Co-latitude is the angle between the
+        pole (spin) vector and the normal vector of the surface of interest.
 
     Return
     ------
     mu_suns : 2-D array
         The mu_sun values.
+
     solar_dirs : 3-D array
         The direction to the Sun (``(x, y, z)`` along ``axis=2``).
         Returned only if ``full=True``.
+
     M1 : ndarray
-        The conversion matrix to convert ecliptic to frame system, i.e.,
-        the result of ``M_ec2fs(r_hel_vec=r_hel_vec,
-        spin_vec=spin_vec)``. Returned only if ``full=True``.
+        The conversion matrix to convert ecliptic to frame system, i.e., the result of
+        ``M_ec2fs(r_hel_vec=r_hel_vec, spin_vec=spin_vec)``.
+        Returned only if ``full=True``.
+
     M2arr : ndarray
-        The conversion matrix to convert frame system to body-fixed
-        frame, i.e., the result of ``M_fs2bf(phase=phase)`` for all
-        ``phase in phases``.
+        The conversion matrix to convert frame system to body-fixed frame, i.e., the result of
+        ``M_fs2bf(phase=phase)`` for all ``phase in phases``.
         Returned only if ``full=True``.
 
     M3arr : ndarray
-        The conversion matrix to convert body-fixed frame to surface
-        system, i.e., the result of ``M_bf2ss(colat__deg=colat)`` for
-        all ``colat in colats``..
+        The conversion matrix to convert body-fixed frame to surface system, i.e., the result of
+        ``M_bf2ss(colat__deg=colat)`` for all ``colat in colats``..
         Returned only if ``full=True``.
+
+    Note
+    ----
+    Adopted from Sect. 2.4. of Davidsson and Rickman (2014), Icarus, 243, 58. If ``a`` is vector in
+    body-fixed frame (in Cartesian (x, y, z)), ``m @ a`` will give the components of vector ``a`` in
+    surface system, where ``m`` is the result of this function.
     '''
     colats__deg = change_to_quantity(colats, 'deg', to_value=True)
     phases__rad = change_to_quantity(phases, 'rad', to_value=True)
@@ -463,25 +455,29 @@ def calc_mu_suns(r_hel_vec, spin_vec, phases, colats, full=False):
 def newton_iter_tpm(newu0_init, newu1, thpar, dZ, mu_sun, Nmax=5000,
                     atol=1.e-8):
     ''' Root finding using Newton's method
+
     Parameters
     ----------
     newu0_init : float
-        The first trial to the ``newu[0]`` value, i.e., the ansatz of
-        ``newu[0]`` value.
+        The first trial to the ``newu[0]`` value, i.e., the ansatz of ``newu[0]`` value.
+
     newu1 : float
-        The ``newu[1]`` value (that will have been calculated before
-        this function will be called).
+        The ``newu[1]`` value (that will have been calculated before this function will be called).
+
     thpar : float
         The thermal parameter
+
     dZ : float
         The depth slab resolution in the thermal skin depth unit.
+
     mu_sun : float
         The cosine of the incident angle (zenith angle of the Sun).
+
     Nmax : int, optional
         The maximum number of iteration to halt the root finding.
+
     atol : float, optional
-        If the absolute difference is smaller than ``atol``, the
-        iteration will stop.
+        If the absolute difference is smaller than ``atol``, the iteration will stop.
     '''
     x0 = newu0_init
 
@@ -501,43 +497,37 @@ def newton_iter_tpm(newu0_init, newu1, thpar, dZ, mu_sun, Nmax=5000,
 
 # Tested on 15"MBP2018: speed is by ~10 times faster if parallel is used.
 @njit(parallel=True)
-def setup_uarr_tpm(u_arr, thpar, dlon, dZ, mu_suns, min_iter=50,
-                   min_elevation_deg=0., permanent_shadow_u=0):
+def setup_uarr_tpm(u_arr, thpar, dlon, dZ, mu_suns, min_iter=50, max_iter=5000, min_elevation_deg=0.,
+                   permanent_shadow_u=0):
     '''
     Parameters
     ----------
     u_arr : 3d-array
-        The u (u is used as the normalized temperature, T/T_EQM) array
-        that must have been defined a priori. It must be satisfied that
-        ``u_arr[i, j, k]`` is u of ``i``th colatitude, ``j``th time, and
-        ``k``th depth.
-        In yssbtmpy, the axis 1 (time axis) has length of ``ntime + 1``,
-        so the code below will understand ``ntime = u_arr.shape[1] -
-        1``.
+        The u (u is used as the normalized temperature, T/T_EQM) array that must have been defined a
+        priori. It must be satisfied that ``u_arr[i, j, k]`` is u of ``i``th colatitude, ``j``th time,
+        and ``k``th depth.
+        In yssbtmpy, the axis 1 (time axis) has length of ``ntime + 1``, so the code below will
+        understand ``ntime = u_arr.shape[1] - 1``.
 
     thpar : float
         The thermal parameter (frequently denoted by Theta).
 
     dlon, dZ : float
-        The longitude and depth bin size in units of radian and thermal
-        skin depth. ``dlon`` is identical to ``dT`` in M. Mueller (2007
-        thesis)'s notation, for instance.
+        The longitude and depth bin size in units of radian and thermal skin depth. ``dlon`` is
+        identical to ``dT`` in M. Mueller (2007 thesis)'s notation, for instance.
 
-    min_iter : int, optional
-        The minimum number of iteration for the equilibrium temperature
-        calculation.
+    min_iter, max_iter : int, optional
+        The minimum or maxumum number of iteration for the equilibrium temperature calculation.
 
     min_elevation_deg : int or float, optional
-        The minimum elevation to check whether the latitudinal slab is
-        assumed as a permanently shadowed region.
-        The latitudinal band is assumed to be in a permanent shadow if
-        the sun is always below this elevation, and all the temperature
-        on this latitude is just set as a constant given by
+        The minimum elevation to check whether the latitudinal slab is assumed as a permanently
+        shadowed region.
+        The latitudinal band is assumed to be in a permanent shadow if the sun is always below this
+        elevation, and all the temperature on this latitude is just set as a constant given by
         ``permanent_shadow_u`` in the unit of ``temp_eqm``.
 
     permanent_shadow_u : float
-        The temperature to be substituted for permanently shadowed
-        regions (unit of ``temp_epm``).
+        The temperature to be substituted for permanently shadowed regions (unit of ``temp_epm``).
     '''
     ncolat, ntimep1, ndepth = u_arr.shape
     ntime = ntimep1 - 1
@@ -549,8 +539,8 @@ def setup_uarr_tpm(u_arr, thpar, dlon, dZ, mu_suns, min_iter=50,
         permanent_shadow = True
         for k in range(ntime):
             # If the sun reaches above ``min_elevation_deg``, i.e.,
-            # mu_sun = cos(90 - EL_sun) > cos(90 - min_elevation_deg) at
-            # least once, it's not a permanent shadow:
+            #   mu_sun = cos(90 - EL_sun) > cos(90 - min_elevation_deg)
+            # at least once, it's not a permanent shadow:
             if mu_suns[i_lat, k] > np.cos((90 - min_elevation_deg)*D2R):
                 # If sun rises > min_elevation_deg
                 permanent_shadow = False
