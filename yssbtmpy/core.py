@@ -5,13 +5,12 @@ import numpy as np
 from astropy import units as u
 from astropy.io import fits
 from scipy.interpolate import RectBivariateSpline
-from astropy.coordinates import SkyCoord, HeliocentricMeanEcliptic
 
 from .constants import GG_Q, NOUNIT, PI, R2D, TIU
 from .relations import (solve_Gq, solve_pAG, solve_pDH, solve_rmrho,
                         solve_temp_eqm, solve_thermal_par)
-from .util import (add_hdr, calc_mu_suns, change_to_quantity, setup_uarr_tpm,
-                   lonlat2cart)
+from .util import (add_hdr, calc_flux_tpm, calc_mu_vals, calc_uarr_tpm,
+                   change_to_quantity, lonlat2cart)
 
 __all__ = ["SmallBody"]
 
@@ -22,8 +21,8 @@ __all__ = ["SmallBody"]
 
 class SmallBody():
     ''' Spherical Small Body class
-    Specified by physical parameters that are the body's characteristic, not time-variable ones (e.g.,
-    ephemerides).
+    Specified by physical parameters that are the body's characteristic, not
+    time-variable ones (e.g., ephemerides).
 
     Example
     -------
@@ -37,7 +36,8 @@ class SmallBody():
     >>>     spin_ecl_lon=10, spin_ecl_lat=-90, rot_period=1
     >>> )
     >>> test.aspect_ang, test.aspect_ang_obs
-    Test by varying spin vector. In all cases tested below, calculation matched with desired values:
+    Test by varying spin vector. In all cases tested below, calculation matched
+    with desired values:
         ----------input-----------  ---------desired----------
         spin_ecl_lon  spin_ecl_lat  aspect_ang  aspect_ang_obs
         0             0             180         180
@@ -55,7 +55,8 @@ class SmallBody():
     >>>     spin_ecl_lon=330, spin_ecl_lat=0, rot_period=1
     >>> )
     >>> test.aspect_ang, test.aspect_ang_obs
-    Test by varying spin vector. In all cases tested below, calculation matched with desired values:
+    Test by varying spin vector. In all cases tested below, calculation matched
+    with desired values:
         ----------input-----------  ---------desired----------
         spin_ecl_lon  spin_ecl_lat  aspect_ang  aspect_ang_obs
         0             0             135         90
@@ -91,6 +92,7 @@ class SmallBody():
         self.phase_ang = None
 
         self.aspect_ang = None
+        self.dlon_sol_obs = None
 
         # Optical related
         self.hmag_vis = None
@@ -130,6 +132,10 @@ class SmallBody():
         self.tempsurf = None
         self.tempunit = None
 
+        self.mu_obss = None
+        self.wlen = None
+        self.flux = None
+
     def _set_aspect_angle(self):
         if ((self.r_hel_vec != np.array([None, None, None]))
                 and (self.r_obs_vec != np.array([None, None, None]))
@@ -139,51 +145,74 @@ class SmallBody():
             # r_obs_hat = lonlat2cart(self.obs_ecl_helio.lon,
             #                         self.obs_ecl_helio.lat)
 
-            asp1 = np.rad2deg(np.arccos(np.inner(-1*r_hel_hat, self.spin_vec)))
-            asp2 = np.rad2deg(np.arccos(np.inner(-1*r_obs_hat, self.spin_vec)))
-
-            toQ = dict(to_value=False)
-            self.aspect_ang = change_to_quantity(asp1, u.deg, **toQ)
+            self.aspect_ang = change_to_quantity(
+                np.rad2deg(np.arccos(np.inner(-1*r_hel_hat, self.spin_vec))),
+                u.deg,
+                to_value=False
+            )
             # aux_cos_sun = np.inner(r_hel_hat, self.spin_vec)
             # self.aspect_ang = (180-np.rad2deg(np.arccos(aux_cos_sun)))*u.deg
-            self.aspect_ang_obs = change_to_quantity(asp2, u.deg, **toQ)
+            self.aspect_ang_obs = change_to_quantity(
+                np.rad2deg(np.arccos(np.inner(-1*r_obs_hat, self.spin_vec))),
+                u.deg,
+                to_value=False
+            )
             # aux_cos_obs = np.inner(r_obs_hat, self.spin_vec)
             # aspect_ang_obs = (180-np.rad2deg(np.arccos(aux_cos_obs)))*u.deg
-            # ([(-r_obs) x (-r_sun)] \cdot spin) has opposite sign of dphi (the phi difference between
-            # the subsolar and subobserver points) :
-            sign = -1*np.sign(np.inner(np.cross(r_obs_hat, r_hel_hat), self.spin_vec))
+
+            # Using the sign(alpha) convention from DelboM 2004 PhDT p.144,
+            # sign([(-r_obs) x (-r_sun)] \cdot spin) = sign(alpha) = sign(dphi)
+            # where dphi is the longitude difference between Sub-solar and
+            # Sub-observer points:
+            sign = np.sign(np.inner(np.cross(r_obs_hat, r_hel_hat), self.spin_vec))
+
+            # cos(dphi) = [(cos(asp_sun)cos(asp_obs) - cos(alpha))
+            # / sin(asp_sun)sin(asp_obs)]
             cc = np.cos(self.aspect_ang)*np.cos(self.aspect_ang_obs)
             ss = np.sin(self.aspect_ang)*np.sin(self.aspect_ang_obs)
-            _arg = ((cc - np.cos(self.phase_ang))/ss).value
-            if _arg < -1:
-                _arg += 1.e-10
-            elif _arg > +1:
-                _arg -= 1.e-10
-            dphi = change_to_quantity(np.arccos(_arg), u.deg, **toQ)
-            phi_obs = (180*u.deg + sign*dphi).to(u.deg)
-            if np.isnan(phi_obs):
-                raise ValueError("Oops T___T")
-            self.pos_sub_sol = (self.aspect_ang, 180*u.deg)
-            self.pos_sub_obs = (self.aspect_ang_obs, phi_obs)
+            cos_dphi = ((cc - np.cos(self.phase_ang))/ss).value
+            cos_dphi -= np.sign(cos_dphi)*1.e-10
+            self.dlon_sol_obs = sign*np.rad2deg(np.arccos(cos_dphi))*u.deg
+
+            # self.pos_sub_sol = (self.aspect_ang, 180*u.deg)
+            # self.pos_sub_obs = (self.aspect_ang_obs, phi_obs)
 
     def set_ecl(self, r_hel, hel_ecl_lon, hel_ecl_lat,
                 r_obs, obs_ecl_lon, obs_ecl_lat, alpha,
                 ephem_equinox='J2000.0', transform_equinox='J2000.0'):
         '''
+        Parameters
+        ----------
+        r_hel, r_obs : float, Quantity
+            The heliocentric and observer-centric distance to the object (in au
+            if `float`).
+
+        hel_ecl_lon, hel_ecl_lat, obs_ecl_lon, obs_ecl_lat : float, Quantity
+            The heliocentric ecliptic and observer-centric ecliptic longitude
+            and latitude (in degrees if `float`).
+
+        alpha : float, Quantity
+            The phase angle (Sun-target-observer angle) (in degrees if
+            `float`). It is not trivial to know `alpha` from ecliptic
+            longitudes and latitudes, because the observer is likely not at the
+            heliocentric distance of 1 au (i.e., geocenter).
+
         Note
         ----
-        The ``ObsEcLon`` and ``ObsEcLat`` from JPL HORIZONS are in the equinox of the observing time,
-        not J2000.0. Although this difference will not give large uncertainty, this may be
-        uncomfortable for some application purposes. In this case, give the ephemerides date (such as
-        ``ephem_equinox=Time(eph['datetime_jd'], format='jd')``) and the equinox of ``hEcl-Lon`` and
-        ``hEcl-Lat`` is calculated (as of 2019, it is J2000.0, so ``transform_equinox="J2000.0"``).
+        The ``ObsEcLon`` and ``ObsEcLat`` from JPL HORIZONS are in the equinox
+        of the observing time, not J2000.0. Although this difference will not
+        give large uncertainty, this may be uncomfortable for some application
+        purposes. In this case, give the ephemerides date (such as
+        ``ephem_equinox=Time(eph['datetime_jd'], format='jd')``) and the
+        equinox of ``hEcl-Lon`` and ``hEcl-Lat`` is calculated (as of 2019, it
+        is J2000.0, so ``transform_equinox="J2000.0"``).
         '''
         toQ = dict(to_value=False)
         self.r_hel = change_to_quantity(r_hel, u.au, **toQ)
         self.r_obs = change_to_quantity(r_obs, u.au, **toQ)
         self.hel_ecl_lon = change_to_quantity(hel_ecl_lon, u.deg, **toQ)
         self.hel_ecl_lat = change_to_quantity(hel_ecl_lat, u.deg, **toQ)
-        # The obs_ecl values from HORIZONS are
+        # The obs_ecl values from HORIZONS are observer-centered lambda, beta values.
         self.obs_ecl_lon = change_to_quantity(obs_ecl_lon, u.deg, **toQ)
         self.obs_ecl_lat = change_to_quantity(obs_ecl_lat, u.deg, **toQ)
         self.phase_ang = change_to_quantity(alpha, u.deg, **toQ)
@@ -198,13 +227,15 @@ class SmallBody():
         # self.obs_ecl_helio = obsecl_geo.transform_to(helecl_ref)
 
         try:
-            vec = lonlat2cart(lon=self.hel_ecl_lon, lat=self.hel_ecl_lat, r=self.r_hel.value)
+            vec = lonlat2cart(lon=self.hel_ecl_lon, lat=self.hel_ecl_lat,
+                              r=self.r_hel.value)
             self.r_hel_vec = vec*u.au
         except TypeError:
             self.r_hel_vec = np.array([None, None, None])
 
         try:
-            vec = lonlat2cart(lon=self.obs_ecl_lon, lat=self.obs_ecl_lat, r=self.r_obs.value)
+            vec = lonlat2cart(lon=self.obs_ecl_lon, lat=self.obs_ecl_lat,
+                              r=self.r_obs.value)
             self.r_obs_vec = vec*u.au
         except TypeError:
             self.r_obs_vec = np.array([None, None, None])
@@ -215,7 +246,17 @@ class SmallBody():
         except TypeError:
             pass
 
-    def set_spin(self, spin_ecl_lon, spin_ecl_lat, rot_period=None):
+    def set_spin(self, spin_ecl_lon, spin_ecl_lat, rot_period):
+        ''' Set the spin vector
+        Parameters
+        ----------
+        spin_ecl_lon, spin_ecl_lat : float, Quantity
+            The ecliptic longitude and latitude of the spin vector (in degrees
+            if `float`).
+
+        rot_period : float, Quantity
+            The rotational period of the object (in seconds if `float`)
+        '''
         toQ = dict(to_value=False)
         self.spin_ecl_lon = change_to_quantity(spin_ecl_lon, u.deg, **toQ)
         self.spin_ecl_lat = change_to_quantity(spin_ecl_lat, u.deg, **toQ)
@@ -239,6 +280,20 @@ class SmallBody():
             pass
 
     def set_mass(self, diam_eff=None, mass=None, bulk_mass_den=None):
+        ''' Set and solve mass-related parameters (at least two of these must be given).
+        Parameters
+        ----------
+        diam_eff : float, Quantity, optional.
+            The effective diameter (in meters if `float`). It might be
+            overriden by `diam_eff` of `.set_optical()`, so be sure they are
+            identical in the script.
+
+        mass : float, Quantity, optional.
+            The mass (in kg if `float`).
+
+        bulk_mass_den : float, Quantity, optional.
+            The bulk mass density (in kg/m^3 if `float`).
+        '''
         ps = solve_rmrho(radius=diam_eff/2, mass=mass, mass_den=bulk_mass_den)
         ps["diam_eff"] = 2*ps["radius"]
         for p in ["diam_eff", "mass", "bulk_mass_den", "acc_grav_equator"]:
@@ -246,7 +301,8 @@ class SmallBody():
                 try:
                     u.allclose(getattr(self, p), ps[p])
                 except AssertionError:
-                    warn(f"self.{p} is not None ({getattr(self, p)}), and will be overridden by {ps[p]}.")
+                    warn(f"self.{p} is not None ({getattr(self, p)}), "
+                         + f"and will be overridden by {ps[p]}.")
 
         self.diam_eff = ps["diam_eff"]
         self.radi_eff = self.diam_eff/2
@@ -255,8 +311,38 @@ class SmallBody():
         self.acc_grav_equator = GG_Q*self.mass/(self.radi_eff)**2
         self.v_esc_equator = np.sqrt(2*GG_Q*self.mass/(self.radi_eff)).si
 
-    def set_optical(self, hmag_vis=None, slope_par=None, diam_eff=None, p_vis=None, a_bond=None,
-                    phase_int=None):
+    def set_optical(
+            self,
+            hmag_vis=None,
+            slope_par=None,
+            diam_eff=None,
+            p_vis=None,
+            a_bond=None,
+            phase_int=None
+    ):
+        ''' Set and solve optical phase curve related parameters
+        Parameters
+        ----------
+        hmag_vis, slope_par : float, optional.
+            The absolute magnitude and slope parameter in the V-band, following
+            the IAU H-G magnitude system (Bowell et al. 1989).
+
+        diam_eff : float, Quantity, optional.
+            The effective diameter (in meters if `float`). It might be
+            overriden by `diam_eff` of `.set_mass()`, so be sure they are
+            identical in the script.
+
+        p_vis : float, optional.
+            The geometric albedo in the V-band.
+
+        a_bond : float, optional.
+            The Bond albedo. If not given, calculated based on the IAU H-G
+            magnitude system, assuming ``A_Bond ~ A_V`` (Bowell et al. 1989).
+
+        phase_int : float, optional.
+            The phase integral. If not given, calculated based on the IAU H-G
+            magnitude system (Bowell et al. 1989).
+        '''
         p1 = solve_pAG(p_vis=p_vis, a_bond=a_bond, slope_par=slope_par)
         p2 = solve_pDH(p_vis=p_vis, diam_eff=diam_eff, hmag_vis=hmag_vis)
         p3 = solve_Gq(slope_par=slope_par, phase_int=phase_int)
@@ -265,16 +351,18 @@ class SmallBody():
             np.testing.assert_allclose(p1["p_vis"], p2["p_vis"])
         except AssertionError:
             raise AssertionError(
-                "The p_vis values obtained using the relations of [p_vis, a_bond, slope_par] and "
-                + "[p_vis, diam_eff, hmag_vis] are different. Please check the input values."
+                "The p_vis values obtained using the relations of [p_vis, a_bond, "
+                + "slope_par] and [p_vis, diam_eff, hmag_vis] are different. "
+                + "Please check the input values."
             )
 
         try:
             np.testing.assert_allclose(p1["slope_par"], p3["slope_par"])
         except AssertionError:
             raise AssertionError(
-                "The slope_par values obtained using the relations of [p_vis, a_bond, slope_par] and "
-                + "[slope_par, phase_int] are different. Please check the input values."
+                "The slope_par values obtained using the relations of [p_vis, a_bond, "
+                + "slope_par] and [slope_par, phase_int] are different."
+                + " Please check the input values."
             )
 
         ps = p1.copy()
@@ -286,7 +374,8 @@ class SmallBody():
                 try:
                     u.allclose(getattr(self, p), ps[p])
                 except AssertionError:
-                    warn(f"self.{p} is not None ({getattr(self, p)}), and will be overridden by {ps[p]}.")
+                    warn(f"self.{p} is not None ({getattr(self, p)}), "
+                         + f"and will be overridden by {ps[p]}.")
 
         self.p_vis = ps["p_vis"]
         self.a_bond = ps["a_bond"]
@@ -297,6 +386,23 @@ class SmallBody():
         self.phase_int = ps["phase_int"]
 
     def set_thermal(self, ti, emissivity, eta_beam=1):
+        ''' Set thermal model related paramters.
+        Parameters
+        ----------
+        ti : float
+            The thermal inertia in SI (tiu = J/m^2/s^0.5/K).
+
+        emissivity : float
+            The spectrum-averaged hemispherical emissivity of the surface
+            material (assumption is that directional emissivity is direction-
+            and wavelength-independent).
+
+        eta_beam : float, optional.
+            The beaming parameter (eta) in the simple NEATM or STM, used as a
+            first-order correction to the roughness effect in TPM (not useful
+            for phase angle larger than ~ 40 degrees). Default is 1.0 (no
+            beaming effect).
+        '''
         toQ = dict(return_quantity=True)
         ps1 = solve_temp_eqm(temp_eqm=None,
                              a_bond=self.a_bond,
@@ -320,9 +426,15 @@ class SmallBody():
         self.ti = ps2["ti"]
 
     # Currently due to the spline, nlat must be > 1
-    def set_tpm(self, nlon=360, nlat=90, Zmax=10, nZ=50):
+    def set_tpm(self, nlon=360, nlat=90, Zmax=10, dZ=0.2):
         ''' TPM code related parameters.
         The attributes here are all non-dimensional!
+        Notes
+        -----
+        The number of slabs is defined by ``self.nZ =
+        int(np.around(Zmax//dZ))``, so if `Zmax` is not an integer multiple
+        of `dZ`, say ``Zmax=10`` and ``dZ=0.15``, there will be
+        ``int(np.around(66.66...)) = 67`` slabs.
         '''
         self.nlon = nlon
         if nlat < 3:
@@ -333,23 +445,24 @@ class SmallBody():
         self.dlon = 2*PI/self.nlon
         self.dlat = PI/self.nlat
         self.Zmax = Zmax
-        self.nZ = nZ
-        self.dZ = self.Zmax/self.nZ
+        self.dZ = dZ
+        self.nZ = int(np.around(Zmax//dZ))
 
         if (self.dlon/(self.dZ)**2) > 0.5:
             raise ValueError(
-                "dlon/dZ^2 > 0.5 !! The solution may not converge. Decrease depth resolution (nZ) or "
-                "increase time resolution (nlon)."
+                "dlon/dZ^2 > 0.5 !! The solution may not converge. Tune such that "
+                + f"nlon > 4*PI/dZ^2 ({4*PI/self.dZ**2 = :.2f})."
             )
 
     def minimal_set(self, thermal_par, aspect_ang, temp_eqm=1):
         ''' Set minimal model.
         Note
         ----
-        When we just want to calculate the temperature on the asteroid, not thinking about the viewing
-        geometry, there is no need to consider any detail about the spin. The spin direction is
-        absorbed into the aspect angle. The spin period is absorbed into thermal paramter. Diameter
-        does not affect the temperature, unless we are using the p-D-H relation.
+        When we just want to calculate the temperature on the asteroid, not
+        thinking about the viewing geometry, there is no need to consider any
+        detail about the spin. The spin direction is absorbed into the aspect
+        angle. The spin period is absorbed into thermal paramter. Diameter does
+        not affect the temperature, unless we are using the p-D-H relation.
         '''
         toQ = dict(to_value=False)
         self.thermal_par = change_to_quantity(thermal_par, NOUNIT, **toQ)
@@ -359,110 +472,214 @@ class SmallBody():
 
         # set fictitious ephemerides
         self.r_hel_vec = np.array([1, 0, 0])
-        self.spin_vec = np.array([-np.cos(self.aspect_ang).value, 0, np.sin(self.aspect_ang).value])
+        self.spin_vec = np.array([
+            -np.cos(self.aspect_ang).value,
+            0,
+            np.sin(self.aspect_ang).value
+        ])
 
-    def calc_temp(self, full=False, min_iter=50, permanent_shadow_u=0):
+    def calc_temp(
+            self,
+            full=False,
+            min_iter=50,
+            max_iter=5000,
+            u_arr_midnight=None,
+            permanent_shadow_u=0,
+            in_kelvin=False,
+            retain_last_uarr=False,
+            atol=1.e-8,
+            verbose=False
+    ):
         ''' Calculate the temperature using TPM
         Parameters
         ----------
         full : bool, optional.
-            If `True`, the temperature beneath the surface is also saved as ``self.tempfull`` as well
-            as the surface temperatue as ``self.tempsurf``. If `False` (default), only the surface
+            If `True`, the temperature beneath the surface is also saved as
+            ``self.tempfull`` as well as the surface temperatue as
+            ``self.tempsurf``. If `False` (default), only the surface
             tempearatue is saved as ``self.tempsurf``.
+
+        min_iter, max_iter : int, optional
+            The minimum or maxumum number of iteration for the equilibrium
+            temperature calculation. Default is 50 and 5000, respectively.
+
+        u_arr_midnight : ndarray, optional.
+            The initial guess for the temperature (in the unit of T_EQM), at
+            time of 0 (midnight), and shape of ``(nlat, ndepth)``. If not
+            given, initializes as ``temp_eqm*e^(-depth/skin_depth)``.
+
+        retain_last_uarr : bool, optional.
+            If `True`, the last iteration's u_arr (``u_arr[:, -1, :]``, which
+            is basically the duplicated midnight value, ``u_arr[:, 0, :]``,
+            under perfect thermal equilibrium) is not removed, so that
+            ``u_arr.shape = (nlat, ntime + 1, ndepth)``.
+
+        atol : float, optional
+            The absolute tolerance for the iteration to stop. (Stops if the
+            T/T_EQM < `atol`). See `util.calc_uarr_tpm` for more details.
         '''
-        phases = np.arange(0, 2*PI, self.dlon)*u.rad
+        self.min_iter = min_iter
+        self.max_iter = max_iter
+        if verbose and self.thermal_par < 0.1:
+            if self.nlon < 1000:
+                print(f"nlon ({self.nlon}) is too small for such thermal parameter "
+                      + "({self.thermal_par:.3e}); recommended to be >= 1500.")
+        phases = np.linspace(0, 2*PI - self.dlon, self.nlon)*u.rad
         # colats is set s.t. nlat=1 gives colat=90 deg.
-        colats = np.arange(0 + self.dlat/2, PI, self.dlat)*u.rad
-        Zarr = np.arange(0, self.Zmax, self.dZ)
+        colats = np.linspace(0 + self.dlat/2, PI - self.dlat/2, self.nlat)*u.rad
+        Zarr = np.linspace(0, self.Zmax - self.dZ, self.nZ)
 
         # For interpolation in lon = 360 deg - dlon to 360 deg:
-        phases_spl = np.arange(0, 360 + self.dlon*R2D, self.dlon*R2D)
+        phases_spl = np.linspace(0, 360 + self.dlon*R2D, self.nlon + 1)
         colats_spl = (colats.to(u.deg)).value
 
         # Make nlon + 1 and then remove this last element later
         u_arr = np.zeros(shape=(self.nlat, self.nlon + 1, self.nZ))
 
-        # initial guess = temp_eqm*e^(-depth/skin_depth)
-        for k in range(self.nlat):
-            u_arr[k, 0, :] = np.exp(-Zarr)
+        if u_arr_midnight is None:
+            # initial guess = temp_eqm*e^(-depth/skin_depth)
+            for k in range(self.nlat):
+                u_arr[k, 0, :] = np.exp(-Zarr)
+        else:
+            for k in range(self.nlat):
+                u_arr[k, 0, :] = u_arr_midnight[k, :]
 
-        self.mu_suns = calc_mu_suns(r_hel_vec=self.r_hel_vec,
-                                    spin_vec=self.spin_vec,
-                                    phases=phases,
-                                    colats=colats,
-                                    full=False)
+        self.mu_suns = calc_mu_vals(
+            r_vec=self.r_hel_vec,
+            spin_vec=self.spin_vec,
+            phases=phases,
+            colats=colats,
+            full=False
+        )
 
         # For interpolation in lon = 360 deg - dlon to 360 deg:
+        # Append lon = 0 to the last -- for interpolation purpose!
         _mu_suns = self.mu_suns.copy()
         _mu_suns = np.append(_mu_suns, np.atleast_2d(_mu_suns[:, 0]).T, axis=1)
-        self.spl_musun = RectBivariateSpline(colats_spl, phases_spl, _mu_suns, kx=1, ky=1, s=0)
+        self.spl_musun = RectBivariateSpline(colats_spl, phases_spl, _mu_suns,
+                                             kx=1, ky=1, s=0)
 
         if self.thermal_par.value < 1.e-6:
             warn("Thermal parameter too small: Automatically set to 1.e-6.")
             self.thermal_par = 1.e-6*NOUNIT
 
-        setup_uarr_tpm(u_arr,
-                       thpar=self.thermal_par.value,
-                       dlon=self.dlon,
-                       dZ=self.dZ,
-                       mu_suns=self.mu_suns,
-                       min_iter=min_iter,
-                       permanent_shadow_u=permanent_shadow_u)
+        calc_uarr_tpm(
+            u_arr,
+            thpar=self.thermal_par.value,
+            dlon=self.dlon,
+            dZ=self.dZ,
+            mu_suns=self.mu_suns,
+            min_iter=self.min_iter,
+            max_iter=self.max_iter,
+            permanent_shadow_u=permanent_shadow_u,
+            atol=atol
+        )
 
         # Because there is one more "phase" value, we make spline here
         # before erasing it in the next line:
-        self.spl_temp = RectBivariateSpline(colats_spl, phases_spl, u_arr[:, :, 0], kx=1, ky=1, s=0)
+        self.spl_uarr = RectBivariateSpline(colats_spl, phases_spl, u_arr[:, :, 0],
+                                            kx=1, ky=1, s=0)
 
         # because there is one more "phase" value, erase it:
-        u_arr = u_arr[:, :-1, :]
+        if not retain_last_uarr:
+            u_arr = u_arr[:, :-1, :]
 
-        self.tempunit = "T_EQM"
+        self.tempunit = "K" if in_kelvin else "T_EQM"
         self.tpm_colats = (colats.to(u.deg)).value
         self.tpm_phases = (phases.to(u.deg)).value
 
         if full:
-            self.tempfull = u_arr
-            self.tempsurf = u_arr[:, :, 0]
+            if in_kelvin:
+                self.tempfull = u_arr*self.temp_eqm__K
+                self.tempsurf = u_arr[:, :, 0]*self.temp_eqm__K
+            else:
+                self.tempfull = u_arr
+                self.tempsurf = u_arr[:, :, 0]
         else:
-            self.tempsurf = u_arr[:, :, 0]
+            if in_kelvin:
+                self.tempsurf = u_arr[:, :, 0]*self.temp_eqm__K
+            else:
+                self.tempsurf = u_arr[:, :, 0]
 
-    def get_temp(self, colat__deg, lon__deg):
+    def calc_flux(self, wlen):
+        ''' Calculates flux in W/m^2/um
+        '''
+        phases = np.linspace(0, 2*PI - self.dlon, self.nlon)*u.rad
+        # colats is set s.t. nlat=1 gives colat=90 deg.
+        colats = np.linspace(0 + self.dlat/2, PI - self.dlat/2, self.nlat)*u.rad
+        self.mu_obss = calc_mu_vals(r_vec=self.r_obs_vec,
+                                    spin_vec=self.spin_vec,
+                                    phases=phases,
+                                    colats=colats,
+                                    full=False)
+        self.wlen = np.array(wlen)
+        if self.wlen.ndim != 1:
+            raise ValueError(f"wlen must be 1-D (now it's {self.wlen.ndim}-D).")
+
+        if self.tempsurf is None:
+            raise ValueError("tempsurf is None. Please run .calc_temp() first.")
+
+        fluxarr = np.zeros(self.wlen.size, dtype=float)
+        calc_flux_tpm(fluxarr, wlen=self.wlen, tempsurf=self.tempsurf, mu_obss=self.mu_obss)
+
+        self.flux = fluxarr*np.pi*(self.radi_eff**2)
+
+    def get_temp_1d(self, colat__deg, lon__deg):
         ''' Return 1d array of temperature.
-        Note
-        ----
-        If you want 2-d array, just use ``self.temp_eqm *
-        self.spl_temp(colat, phi)``.
 
         Parameters
         ----------
         colat__deg, lon__deg : float or Quantity, or array of such
-            The colatitude, which is 0 at North and 180 at South, and the phase (longitude), which is 0
-            at midnight and 90 at sunrise in degrees unit. Note this is different from low-level cases
-            where the default is radian in many cases.
-        Note
-        ----
-        For performance issue, I didn't put any astropy quantity here. This function may be used
-        hundreds of thousands of times for each simulation, so 1ms is not a small time delay.
+            The colatitude, which is 0 at North and 180 at South, and the phase
+            (longitude), which is 0 at midnight and 90 at sunrise in degrees
+            unit. Note this is different from low-level cases where the default
+            is radian in many cases.
+
+        Notes
+        -----
+        For performance issue, I didn't put any astropy quantity here. This
+        function may be used hundreds of thousands of times for each
+        simulation, so 1ms is not a small time delay.
         '''
-        temp = self.spl_temp(colat__deg, lon__deg)
+        temp = self.spl_uarr(colat__deg, lon__deg)
         return self.temp_eqm__K*temp.flatten()
+
+    def get_temp_2d(self, colat__deg, lon__deg):
+        ''' Return 1d array of temperature.
+
+        Parameters
+        ----------
+        colat__deg, lon__deg : float or Quantity, or array of such
+            The colatitude, which is 0 at North and 180 at South, and the phase
+            (longitude), which is 0 at midnight and 90 at sunrise in degrees
+            unit. Note this is different from low-level cases where the default
+            is radian in many cases.
+
+        Notes
+        -----
+        For performance issue, I didn't put any astropy quantity here. This
+        function may be used hundreds of thousands of times for each
+        simulation, so 1ms is not a small time delay.
+        '''
+        return self.temp_eqm__K*self.spl_uarr(colat__deg, lon__deg)
 
     def get_musun(self, colat__deg, lon__deg):
         ''' Return 1d array of temperature.
-        Note
-        ----
-        If you want 2-d array, just use ``self.spl_musun(colat, phi)``.
 
         Parameters
         ----------
         colat, phi : float or Quantity, or array of such
-            The colatitude, which is 0 at North and 180 at South, and the phase (longitude), which is 0
-            at midnight and 90 at sunrise in degrees unit. Note this is different from low-level cases
-            where the default is radian in many cases.
-        Note
-        ----
-        For performance issue, I didn't put any astropy quantity here. This function may be used
-        hundreds of thousands of times for each simulation, so 1ms is not a small time delay.
+            The colatitude, which is 0 at North and 180 at South, and the phase
+            (longitude), which is 0 at midnight and 90 at sunrise in degrees
+            unit. Note this is different from low-level cases where the default
+            is radian in many cases.
+
+        Notes
+        -----
+        If you want 2-d array, just use ``self.spl_musun(colat, phi)``.
+        For performance issue, I didn't put any astropy quantity here. This
+        function may be used hundreds of thousands of times for each
+        simulation, so 1ms is not a small time delay.
         '''
         musun = self.spl_musun(colat__deg, lon__deg)
         musun[musun < 1.e-4] = 0
@@ -470,9 +687,11 @@ class SmallBody():
         return musun.flatten()
 
     def tohdul(self, output=None, dtype='float32', **kwargs):
-        hdul = fits.HDUList([fits.PrimaryHDU(),
-                             fits.ImageHDU(data=self.tempsurf.astype(dtype)),
-                             fits.ImageHDU(data=self.mu_suns.astype(dtype))])
+        hdul = fits.HDUList([
+            fits.PrimaryHDU(),
+            fits.ImageHDU(data=self.tempsurf.astype(dtype)),
+            fits.ImageHDU(data=self.mu_suns.astype(dtype))
+        ])
         hdu_0 = hdul[0]
         hdu_T = hdul[1]
         hdu_m = hdul[2]
@@ -605,3 +824,11 @@ class SmallBody():
             print(type(hdul[0]))
             hdul.writeto(output, **kwargs)
         return hdul
+
+    @classmethod
+    def from_eph(cls, eph_row):
+        sb = cls()
+        sb.set_ecl(r_hel=eph_row["r"], r_obs=eph_row["delta"], alpha=eph_row["alpha"],
+                   hel_ecl_lat=eph_row["EclLat"], hel_ecl_lon=eph_row["EclLon"],
+                   obs_ecl_lat=eph_row["ObsEclLat"], obs_ecl_lon=eph_row["ObsEclLon"])
+        return sb

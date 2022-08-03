@@ -8,20 +8,20 @@ __all__ = ["B_lambda", "b_lambda"]
 
 
 def B_lambda(wavelen, temperature):
-    ''' Calculates black body radiance [energy/time/area/wavelen/sr]
+    ''' Calculates black body radiance [energy/time/area/length/sr] = [W/m2/m/sr]
     Parameters
     ----------
-    wavelen : float or ~Quantity, ~numpy.ndarray of such.
+    wavelen : float or `~Quantity`, `~numpy.ndarray` of such.
         The wavelengths. In meter unit if not Quantity.
 
-    temperature : float
-        The temperature. In Kelvin unit if not Quantity. For specific purpose, you can give it in an
-        ndarray format, but not recommended.
+    temperature : float or `~Quantity`
+        The temperature. In Kelvin unit if not Quantity. For specific purpose,
+        you can give it in an ndarray format, but not recommended.
 
     Return
     ------
     radiance : ndarray
-        The black body radiance [energy/time/area/wavelen/sr].
+        The black body radiance [energy/time/area/length/sr] = [W/m2/m/sr].
     '''
     wl = change_to_quantity(wavelen, u.m, to_value=True)
     temp = change_to_quantity(temperature, u.K, to_value=True)
@@ -36,12 +36,12 @@ def b_lambda(wavelen, temperature):
 
     Parameters
     ----------
-    wavelen : float or ~Quantity, ~numpy.ndarray of such.
+    wavelen : float or `~Quantity`, `~numpy.ndarray` of such.
         The wavelengths. In meter unit if not Quantity.
 
-    temperature : float or ~Quantity
-        The temperature. In Kelvin unit if not Quantity. For specific purpose, you can give it in an
-        ndarray format, but not recommended.
+    temperature : float or `~Quantity`
+        The temperature. In Kelvin unit if not Quantity. For specific purpose,
+        you can give it in an ndarray format, but not recommended.
 
     Return
     ------

@@ -7,7 +7,6 @@ longitude phi = 0 at midnight, 180˚ at midday.
 '''
 import numpy as np
 from astropy import units as u
-from numba import njit
 
 from .constants import C_F_SUN, C_F_THER, D2R, GG, PI, T_SUN
 from .relations import solve_rmrho
@@ -21,12 +20,10 @@ __all__ = ["MovingParticle"]
 CART2SPH_KW = dict(from_0=True, degree=True, to_lonlat=False)
 
 
-@njit()
 def sin_deg(x):
     return np.sin(x*D2R)
 
 
-@njit()
 def cos_deg(x):
     return np.cos(x*D2R)
 
@@ -109,12 +106,12 @@ class MovingParticle(SmallBodyForceMixin):
                                    ])  # unit vector of sun-asteroid vector
 
         def _get_temp(theta__deg, phi__deg):
-            return self.smallbody.get_temp(colat__deg=theta__deg, lon__deg=phi__deg)
+            return self.smallbody.get_temp_1d(colat__deg=theta__deg, lon__deg=phi__deg)
 
         def _get_musun(theta__deg, phi__deg):
             return self.smallbody.get_musun(colat__deg=theta__deg, lon__deg=phi__deg)
 
-        self.get_temp = _get_temp
+        self.get_temp_1d = _get_temp
         self.get_musun = _get_musun
 
         ps = solve_rmrho(radius=radius, mass=mass, mass_den=mass_den)
@@ -177,7 +174,7 @@ class MovingParticle(SmallBodyForceMixin):
         self.trace_height = [heignt_init_m]
         self.trace_heightpar = [1/(1 + (heignt_init_m/self.r0_par_m)**2)]
         self.trace_musun = [self.get_musun(th, ph)]
-        self.trace_temp = [self.get_temp(th, ph)]
+        self.trace_temp = [self.get_temp_1d(th, ph)]
 
         self.trace_a_sun_xyz = []
         self.trace_a_ref_xyz = []
@@ -199,7 +196,7 @@ class MovingParticle(SmallBodyForceMixin):
         height_par = 1/(1 + ((r_sph - self.r_sb_m)/self.r0_par_m)**2)
 
         mu_sun = self.get_musun(th, ph)
-        temp_s = self.get_temp(th, ph)
+        temp_s = self.get_temp_1d(th, ph)
         unit_r = pos_xyz/r_sph
 
         val_Qprbar_surf = self.func_Qprbar(temp_s, self.radius_um)
@@ -267,14 +264,13 @@ class MovingParticle(SmallBodyForceMixin):
         self.trace_height.append(height)
         self.trace_heightpar.append(height_par)
         self.trace_musun.append(self.get_musun(newpos_sph[1], newpos_sph[2]))
-        self.trace_temp.append(self.get_temp(newpos_sph[1], newpos_sph[2]))
+        self.trace_temp.append(self.get_temp_1d(newpos_sph[1], newpos_sph[2]))
         # NOTE: some of these append are not included in the acc_func, because if we use leapfrog_dkd,
         #   the times at which we calculate the acceleration must be different form those we use for
         #   calculate the positions. For this reason, I sacrificed a bit of (computational) time and
         #   put these code lines here, not in the acc_func.
 
-    def propagate(self, dt, nstep=None, min_height=0*u.m, max_height=None,
-                  verbose=True):
+    def propagate(self, dt, nstep=None, min_height=0*u.m, max_height=None, verbose=True):
         ''' Propagate the particle
         Parameters
         ----------
@@ -282,7 +278,7 @@ class MovingParticle(SmallBodyForceMixin):
             The time step in real absolute physical unit (seconds).
 
         nstep : int or None
-            The number of steps to propagate. If ``None``, it is halted only when the min_height or
+            The number of steps to propagate. If `None`, it is halted only when the min_height or
             max_height is reached.
 
         min_height, max_height : float, `~astropy.Quantity`
