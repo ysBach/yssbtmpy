@@ -211,10 +211,7 @@ def lonlat2cart(lon, lat, degree=True, r=1):
     a: 1-d array
         The calculated ``(x, y, z)`` array.
     '''
-    if degree:
-        targ_unit = u.deg
-    else:
-        targ_unit = u.rad
+    targ_unit = u.deg if degree else u.rad
 
     lon = change_to_quantity(lon, targ_unit, to_value=False)
     lat = change_to_quantity(lat, targ_unit, to_value=False)
@@ -244,10 +241,7 @@ def sph2cart(theta, phi, degree=True, r=1):
     a: 1-d array
         The calculated ``(x, y, z)`` array.
     '''
-    if degree:
-        targ_unit = u.deg
-    else:
-        targ_unit = u.rad
+    targ_unit = u.deg if degree else u.rad
 
     th = change_to_quantity(theta, targ_unit, to_value=False)
     ph = change_to_quantity(phi, targ_unit, to_value=False)
@@ -286,10 +280,7 @@ def cart2sph(x, y, z, from_0=True, degree=True, to_lonlat=False):
         The ``(r, theta, phi)`` or ``(r, lon=phi, lat=90deg - theta)`` array.
     '''
     r = np.sqrt(x**2 + y**2 + z**2)
-    if degree:
-        factor = R2D
-    else:
-        factor = 1.
+    factor = R2D if degree else 1.
 
     theta = factor*np.arccos(z/r)
     phi = factor*np.arctan2(y, x)  # -180 to +180 deg
@@ -330,7 +321,7 @@ def M_ec2fs(r_vec, spin_vec):
     a`` will give the components of vector ``a`` in frame system, where ``m``
     is the result of this function.
     '''
-    Z_fs_ec = spin_vec.copy()
+    # Z_fs_ec = spin_vec.copy()
     Y_fs_ec = np.cross(spin_vec, -r_vec)
     X_fs_ec = np.cross(Y_fs_ec, Z_fs_ec)
 
@@ -338,7 +329,7 @@ def M_ec2fs(r_vec, spin_vec):
     # lengths to make a suitable matrix:
     X_fs_ec = X_fs_ec / np.linalg.norm(X_fs_ec)
     Y_fs_ec = Y_fs_ec / np.linalg.norm(Y_fs_ec)
-    Z_fs_ec = Z_fs_ec / np.linalg.norm(Z_fs_ec)
+    Z_fs_ec = spin_vec / np.linalg.norm(spin_vec)
 
     m1 = np.vstack([X_fs_ec, Y_fs_ec, Z_fs_ec]).T
     m = np.linalg.inv(m1)
@@ -393,7 +384,7 @@ def M_bf2ss(colat):
     will give the components of vector ``a`` in surface system, where ``m`` is
     the result of this function.
     '''
-    colat__deg = change_to_quantity(colat, 'deg', to_value=True)
+    colat__deg = change_to_quantity(colat, u.deg, to_value=True)
 
     c = np.cos(colat__deg * D2R)
     s = np.sin(colat__deg * D2R)
@@ -452,8 +443,8 @@ def calc_mu_vals(r_vec, spin_vec, phases, colats, full=False):
     will give the components of vector ``a`` in surface system, where ``m`` is
     the result of this function.
     '''
-    colats__deg = change_to_quantity(colats, 'deg', to_value=True)
-    phases__rad = change_to_quantity(phases, 'rad', to_value=True)
+    colats__deg = change_to_quantity(colats, u.deg, to_value=True)
+    phases__rad = change_to_quantity(phases, u.rad, to_value=True)
 
     M2arr = []
     M3arr = []
@@ -469,9 +460,8 @@ def calc_mu_vals(r_vec, spin_vec, phases, colats, full=False):
 
     M2arr = np.array(M2arr)
     M3arr = np.array(M3arr)
-    r_hel_unit = (r_vec)/np.linalg.norm(r_vec)
     for M3 in M3arr:
-        dirs.append(M3 @ M2arr @ M1 @ -r_hel_unit)
+        dirs.append(M3 @ M2arr @ M1 @ -(r_vec/np.linalg.norm(r_vec)))
     solar_dirs = np.array(dirs)
     mu_vals = solar_dirs.copy()[:, :, 2]  # Z component = cos i_sun for mu_sun case.
     mu_vals[mu_vals < 0] = 0

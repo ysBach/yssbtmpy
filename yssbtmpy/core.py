@@ -66,9 +66,10 @@ class SmallBody():
         any value     +-90          90          90
 
     '''
-
+    # TODO: Better to use setter and getter methods...///
     # TODO: What if a user input values with Quantity?
     #   Removing the units is not what is desired...
+
     def __init__(self):
         self.id = None
         # self.use_quantity = use_quantity
@@ -227,22 +228,19 @@ class SmallBody():
         # self.obs_ecl_helio = obsecl_geo.transform_to(helecl_ref)
 
         try:
-            vec = lonlat2cart(lon=self.hel_ecl_lon, lat=self.hel_ecl_lat,
-                              r=self.r_hel.value)
-            self.r_hel_vec = vec*u.au
+            self.r_hel_vec = lonlat2cart(lon=self.hel_ecl_lon, lat=self.hel_ecl_lat,
+                                         r=self.r_hel.value)*u.au
         except TypeError:
             self.r_hel_vec = np.array([None, None, None])
 
         try:
-            vec = lonlat2cart(lon=self.obs_ecl_lon, lat=self.obs_ecl_lat,
-                              r=self.r_obs.value)
-            self.r_obs_vec = vec*u.au
+            self.r_obs_vec = lonlat2cart(lon=self.obs_ecl_lon, lat=self.obs_ecl_lat,
+                                         r=self.r_obs.value)*u.au
         except TypeError:
             self.r_obs_vec = np.array([None, None, None])
 
         try:
             self._set_aspect_angle()
-
         except TypeError:
             pass
 
