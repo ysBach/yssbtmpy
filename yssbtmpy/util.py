@@ -323,7 +323,7 @@ def M_ec2fs(r_vec, spin_vec):
     '''
     # Z_fs_ec = spin_vec.copy()
     Y_fs_ec = np.cross(spin_vec, -r_vec)
-    X_fs_ec = np.cross(Y_fs_ec, Z_fs_ec)
+    X_fs_ec = np.cross(Y_fs_ec, spin_vec)
 
     # The input rh or spin vector mignt not be unit vectors, so divide by
     # lengths to make a suitable matrix:
