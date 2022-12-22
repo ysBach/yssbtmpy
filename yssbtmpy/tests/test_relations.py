@@ -33,15 +33,15 @@ _test_TI = [1, 100, 1000]  # TIU
 
 
 def allclose_Q(a, b, rtol=1.e-5, atol=None, **kwargs):
-    ''' astropy quantity allclose, but with ``assert`` version for testing.
-    '''
+    """ astropy quantity allclose, but with ``assert`` version for testing.
+    """
     assert u.allclose(a, b, rtol=rtol, atol=atol, **kwargs)
 
 
 # Test G(slope_par) and q(phase_int)
 def test_G2q_CoQo():
-    ''' Tests solve_Gq and G2q with CoQo
-    '''
+    """ Tests solve_Gq and G2q with CoQo
+    """
     kwdict = CoQo
     test_G = np.array(_test_G)
     real_q = 0.290 + 0.684*test_G
@@ -53,8 +53,8 @@ def test_G2q_CoQo():
 
 
 def test_G2q_CoQx():
-    ''' Tests solve_Gq and G2q with CoQx
-    '''
+    """ Tests solve_Gq and G2q with CoQx
+    """
     kwdict = CoQx
     test_G = np.array(_test_G)
     real_q = 0.290 + 0.684*test_G
@@ -66,8 +66,8 @@ def test_G2q_CoQx():
 
 
 def test_G2q_CxQo():
-    ''' Tests solve_Gq and G2q with CxQo
-    '''
+    """ Tests solve_Gq and G2q with CxQo
+    """
     kwdict = CxQo
     test_G = np.array(_test_G)
     real_q = 0.286 + 0.656*test_G
@@ -79,8 +79,8 @@ def test_G2q_CxQo():
 
 
 def test_G2q_CxQx():
-    ''' Tests solve_Gq and G2q with CxQx
-    '''
+    """ Tests solve_Gq and G2q with CxQx
+    """
     kwdict = CxQx
     test_G = np.array(_test_G)
     real_q = 0.286 + 0.656*test_G
@@ -92,8 +92,8 @@ def test_G2q_CxQx():
 
 
 def test_q2G_CoQo():
-    ''' Tests solve_Gq and q2G with CoQo
-    '''
+    """ Tests solve_Gq and q2G with CoQo
+    """
     kwdict = CoQo
     test_q = np.array(_test_q)
     real_G = (test_q - 0.290)/0.684
@@ -104,8 +104,8 @@ def test_q2G_CoQo():
 
 
 def test_q2G_CoQx():
-    ''' Tests solve_Gq and q2G with CoQx
-    '''
+    """ Tests solve_Gq and q2G with CoQx
+    """
     kwdict = CoQx
     test_q = np.array(_test_q)
     real_G = (test_q - 0.290)/0.684
@@ -117,8 +117,8 @@ def test_q2G_CoQx():
 
 
 def test_q2G_CxQo():
-    ''' Tests solve_Gq and q2G with CxQo
-    '''
+    """ Tests solve_Gq and q2G with CxQo
+    """
     kwdict = CxQo
     test_q = np.array(_test_q)
     real_G = (test_q - 0.286)/0.656
@@ -130,8 +130,8 @@ def test_q2G_CxQo():
 
 
 def test_q2G_CxQx():
-    ''' Tests solve_Gq and q2G with CxQo
-    '''
+    """ Tests solve_Gq and q2G with CxQo
+    """
     kwdict = CxQx
     test_q = np.array(_test_q)
     real_G = (test_q - 0.286)/0.656
@@ -144,8 +144,8 @@ def test_q2G_CxQx():
 
 # Test p(p_vis), G(slope_par) and A(a_bond)
 def test_pG2A_CoQo():
-    ''' Tests solve_pGA and pG2A with CoQo
-    '''
+    """ Tests solve_pGA and pG2A with CoQo
+    """
     kwdict = CoQo
     test_p = np.array(_test_p)
 
@@ -158,8 +158,8 @@ def test_pG2A_CoQo():
 
 
 def test_pG2A_CoQx():
-    ''' Tests solve_pGA and pG2A with CoQx
-    '''
+    """ Tests solve_pGA and pG2A with CoQx
+    """
     kwdict = CoQx
     test_p = np.array(_test_p)
 
@@ -172,8 +172,8 @@ def test_pG2A_CoQx():
 
 
 def test_pG2A_CxQo():
-    ''' Tests solve_pGA and pG2A with CxQo
-    '''
+    """ Tests solve_pGA and pG2A with CxQo
+    """
     kwdict = CxQo
     test_p = np.array(_test_p)
 
@@ -186,8 +186,8 @@ def test_pG2A_CxQo():
 
 
 def test_pG2A_CxQx():
-    ''' Tests solve_pGA and pG2A with CxQx
-    '''
+    """ Tests solve_pGA and pG2A with CxQx
+    """
     kwdict = CxQx
     test_p = np.array(_test_p)
 
@@ -200,8 +200,8 @@ def test_pG2A_CxQx():
 
 
 def test_AG2p_CoQo():
-    ''' Tests solve_pGA and AG2p with CoQo
-    '''
+    """ Tests solve_pGA and AG2p with CoQo
+    """
     kwdict = CoQo
     test_A = np.array(_test_A)
 
@@ -214,8 +214,8 @@ def test_AG2p_CoQo():
 
 
 def test_AG2p_CoQx():
-    ''' Tests solve_pGA and AG2p with CoQx
-    '''
+    """ Tests solve_pGA and AG2p with CoQx
+    """
     kwdict = CoQx
     test_A = np.array(_test_A)
 
@@ -228,8 +228,8 @@ def test_AG2p_CoQx():
 
 
 def test_AG2p_CxQo():
-    ''' Tests solve_pGA and AG2p with CxQo
-    '''
+    """ Tests solve_pGA and AG2p with CxQo
+    """
     kwdict = CxQo
     test_A = np.array(_test_A)
 
@@ -242,8 +242,8 @@ def test_AG2p_CxQo():
 
 
 def test_AG2p_CxQx():
-    ''' Tests solve_pGA and AG2p with CxQx
-    '''
+    """ Tests solve_pGA and AG2p with CxQx
+    """
     kwdict = CxQx
     test_A = np.array(_test_A)
 
@@ -256,8 +256,8 @@ def test_AG2p_CxQx():
 
 
 def test_pA2G_CoQo():
-    ''' Tests solve_pGA and pA2G with CoQo
-    '''
+    """ Tests solve_pGA and pA2G with CoQo
+    """
     kwdict = CoQo
     test_p = np.array(_test_p)
 
@@ -270,8 +270,8 @@ def test_pA2G_CoQo():
 
 
 def test_pA2G_CoQx():
-    ''' Tests solve_pGA and pA2G with CoQx
-    '''
+    """ Tests solve_pGA and pA2G with CoQx
+    """
     kwdict = CoQx
     test_p = np.array(_test_p)
 
@@ -284,8 +284,8 @@ def test_pA2G_CoQx():
 
 
 def test_pA2G_CxQo():
-    ''' Tests solve_pGA and pA2G with CxQo
-    '''
+    """ Tests solve_pGA and pA2G with CxQo
+    """
     kwdict = CxQo
     test_p = np.array(_test_p)
 
@@ -298,8 +298,8 @@ def test_pA2G_CxQo():
 
 
 def test_pA2G_CxQx():
-    ''' Tests solve_pGA and pA2G with CxQx
-    '''
+    """ Tests solve_pGA and pA2G with CxQx
+    """
     kwdict = CxQx
     test_p = np.array(_test_p)
 
@@ -313,8 +313,8 @@ def test_pA2G_CxQx():
 
 # Test p(p_vis), D(diam_eff), and H(hmag_vis)
 def test_pD2H_Qo():
-    ''' Tests solve_pDH and pD2H with Qo
-    '''
+    """ Tests solve_pDH and pD2H with Qo
+    """
     kwdict = Qo
     test_p = np.array(_test_p)
 
@@ -327,8 +327,8 @@ def test_pD2H_Qo():
 
 
 def test_pD2H_Qx():
-    ''' Tests solve_pDH and pD2H with Qx
-    '''
+    """ Tests solve_pDH and pD2H with Qx
+    """
     kwdict = Qx
     test_p = np.array(_test_p)
 
@@ -341,8 +341,8 @@ def test_pD2H_Qx():
 
 
 def test_pH2D_Qo():
-    ''' Tests solve_pDH and pH2D with Qo
-    '''
+    """ Tests solve_pDH and pH2D with Qo
+    """
     kwdict = Qo
     test_p = np.array(_test_p)
 
@@ -361,8 +361,8 @@ def test_pH2D_Qo():
 
 
 def test_pH2D_Qx():
-    ''' Tests solve_pDH and pH2D with Qx
-    '''
+    """ Tests solve_pDH and pH2D with Qx
+    """
     kwdict = Qx
     test_p = np.array(_test_p)
 
@@ -381,8 +381,8 @@ def test_pH2D_Qx():
 
 
 def test_DH2p_Qo():
-    ''' Tests solve_pDH and DH2p with Qo
-    '''
+    """ Tests solve_pDH and DH2p with Qo
+    """
     kwdict = Qo
     test_D = np.array(_test_D)
 
@@ -401,8 +401,8 @@ def test_DH2p_Qo():
 
 
 def test_DH2p_Qx():
-    ''' Tests solve_pDH and DH2p with Qx
-    '''
+    """ Tests solve_pDH and DH2p with Qx
+    """
     kwdict = Qx
     test_D = np.array(_test_D)
 
@@ -421,8 +421,8 @@ def test_DH2p_Qx():
 
 
 def test_solve_temp_eqm_temp_eqm_Qo():
-    ''' Tests solve_temp_eqm and T_eqm with Qo
-    '''
+    """ Tests solve_temp_eqm and T_eqm with Qo
+    """
     kwdict = Qo
     test_A = np.array(_test_A)
 
@@ -456,8 +456,8 @@ def test_solve_temp_eqm_temp_eqm_Qo():
 
 
 def test_solve_temp_eqm_temp_eqm_Qx():
-    ''' Tests solve_temp_eqm and T_eqm with Qx
-    '''
+    """ Tests solve_temp_eqm and T_eqm with Qx
+    """
     kwdict = Qx
     test_A = np.array(_test_A)
 
@@ -491,8 +491,8 @@ def test_solve_temp_eqm_temp_eqm_Qx():
 
 
 def test_solve_temp_eqm_a_bond_Qo():
-    ''' Tests solve_temp_eqm to get a_bond with Qo
-    '''
+    """ Tests solve_temp_eqm to get a_bond with Qo
+    """
     kwdict = Qo
     test_T = np.array(_test_T)
 
@@ -517,8 +517,8 @@ def test_solve_temp_eqm_a_bond_Qo():
 
 
 def test_solve_temp_eqm_a_bond_Qx():
-    ''' Tests solve_temp_eqm to get a_bond with Qx
-    '''
+    """ Tests solve_temp_eqm to get a_bond with Qx
+    """
     kwdict = Qx
     test_T = np.array(_test_T)
 
@@ -543,8 +543,8 @@ def test_solve_temp_eqm_a_bond_Qx():
 
 
 def test_solve_temp_eqm_eta_beam_Qo():
-    ''' Tests solve_temp_eqm to get eta_beam with Qo
-    '''
+    """ Tests solve_temp_eqm to get eta_beam with Qo
+    """
     kwdict = Qo
     test_T = np.array(_test_T)
 
@@ -569,8 +569,8 @@ def test_solve_temp_eqm_eta_beam_Qo():
 
 
 def test_solve_temp_eqm_eta_beam_Qx():
-    ''' Tests solve_temp_eqm to get eta_beam with Qx
-    '''
+    """ Tests solve_temp_eqm to get eta_beam with Qx
+    """
     kwdict = Qx
     test_T = np.array(_test_T)
 
@@ -595,8 +595,8 @@ def test_solve_temp_eqm_eta_beam_Qx():
 
 
 def test_solve_temp_eqm_r_hel_Qo():
-    ''' Tests solve_temp_eqm to get r_hel with Qo
-    '''
+    """ Tests solve_temp_eqm to get r_hel with Qo
+    """
     kwdict = Qo
     test_T = np.array(_test_T)
 
@@ -621,8 +621,8 @@ def test_solve_temp_eqm_r_hel_Qo():
 
 
 def test_solve_temp_eqm_r_hel_Qx():
-    ''' Tests solve_temp_eqm to get r_hel with Qx
-    '''
+    """ Tests solve_temp_eqm to get r_hel with Qx
+    """
     kwdict = Qx
     test_T = np.array(_test_T)
 
@@ -647,8 +647,8 @@ def test_solve_temp_eqm_r_hel_Qx():
 
 
 def test_solve_temp_eqm_emissivity_Qo():
-    ''' Tests solve_temp_eqm to get emissivity with Qo
-    '''
+    """ Tests solve_temp_eqm to get emissivity with Qo
+    """
     kwdict = Qo
     test_T = np.array(_test_T)
 
@@ -673,8 +673,8 @@ def test_solve_temp_eqm_emissivity_Qo():
 
 
 def test_solve_temp_eqm_emissivity_Qx():
-    ''' Tests solve_temp_eqm to get emissivity with Qx
-    '''
+    """ Tests solve_temp_eqm to get emissivity with Qx
+    """
     kwdict = Qx
     test_T = np.array(_test_T)
 

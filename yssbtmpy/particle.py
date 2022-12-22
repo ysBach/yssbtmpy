@@ -1,10 +1,10 @@
-'''
+"""
 xyz such that
 z: spin axis
 x: s.t. the Sun is always on the xz plane with negative x
 (sun-asteroid vector has positive x value)
 longitude phi = 0 at midnight, 180˚ at midday.
-'''
+"""
 import numpy as np
 from astropy import units as u
 
@@ -39,9 +39,9 @@ class SmallBodyForceMixin:
     # TODO: Will it be faster if we have spline of temp^4 a priori?
     @staticmethod
     def _force_ther(r_um, temp, height_par, emissivity, val_Qprbar):
-        r'''
+        r"""
         Constant emissivity for surface is assumed, i.e., :math: `\epsilon_S = \bar{\epsilon_S}`.
-        '''
+        """
         eda2 = emissivity*height_par*(r_um)**2
         f_ther = C_F_THER*val_Qprbar*eda2*temp**4
 
@@ -61,11 +61,11 @@ class SmallBodyForceMixin:
 
     @staticmethod
     def leapfrog_kdk(t, posvel, dt, acc_func, acc_start=None):
-        '''
+        """
         To save time in acceleration calculation, if you give ``acc_start``, it will use it as the
         acceleration of the starting point, which is the accelration of the ending point of the last
         iteration.
-        '''
+        """
         pos, vel = posvel
         if acc_start is not None:
             vel_tmp = vel + dt/2*acc_start
@@ -79,7 +79,7 @@ class SmallBodyForceMixin:
 
 class MovingParticle(SmallBodyForceMixin):
     def __init__(self, smallbody, radius=None, mass=None, mass_den=None, r0_radius=0.01):
-        '''
+        """
         Parameters
         ----------
         radius, mass, mass_den : float or `~astropy.Quantity`
@@ -89,7 +89,7 @@ class MovingParticle(SmallBodyForceMixin):
         r0_radius : float, optional
             The r0 parameter (the maximum radius of the regolith to be considered for reflected solar
             radiation and thermal radiation) in the unit of the smallbody's radius.
-        '''
+        """
         self.smallbody = smallbody
         self.r_sb = self.smallbody.diam_eff.to(u.m)/2
         self.r_sb_m = (self.r_sb.to(u.m)).value
@@ -124,7 +124,7 @@ class MovingParticle(SmallBodyForceMixin):
         self.vel_eq_mps = (self.vel_eq.to(u.m/u.s)).value
 
     def set_func_Qprbar(self, func_Qprbar, func_Qprbar_sun=None):
-        '''
+        """
         Parameters
         ----------
         func_Qprbar : function object
@@ -135,7 +135,7 @@ class MovingParticle(SmallBodyForceMixin):
         func_Qprbar_sun : function object, optional
             The function which returns Qprbar value for the solar spectrum for a given radius in
             micro-meters unit.
-        '''
+        """
         self.func_Qprbar = func_Qprbar
         self.func_Qprbar_sun = func_Qprbar_sun
 
@@ -149,14 +149,14 @@ class MovingParticle(SmallBodyForceMixin):
         self.val_Qprbar_sun = self.func_Qprbar_sun(self.radius_um)
 
     def set_initial_pos(self, colat, lon, height=1*u.cm, vec_vel_init=None):
-        ''' Sets the initial position
+        """ Sets the initial position
 
         Parameters
         ----------
         colat, lon : float or `~astropy.Quantity`
             The colatitude (``theta`` of ``(r, theta, phi)`` notation) and the longitude (``phi`` of
             the notation, which is 0 at midnight, 90 deg at sunrise) of the initial position.
-        '''
+        """
         height_init = change_to_quantity(height, u.m, to_value=False)
         heignt_init_m = (height_init.to(u.m)).value
         r = self.r_sb_m + heignt_init_m
@@ -184,13 +184,13 @@ class MovingParticle(SmallBodyForceMixin):
         self.acc_func(self.trace_pos_xyz[0], append=True)
 
     def acc_func(self, pos_xyz, append=False):
-        '''
+        """
         Parameters
         ----------
         pos_xyz : 1-d array of float
             The position in XYZ format in meters units. For performance issue, it's recommended to use
             float than `~astropy.Quantity`.
-        '''
+        """
         r_sph, th, ph = cart2sph(*pos_xyz, **CART2SPH_KW)
 
         height_par = 1/(1 + ((r_sph - self.r_sb_m)/self.r0_par_m)**2)
@@ -238,13 +238,13 @@ class MovingParticle(SmallBodyForceMixin):
         return a_all_vec
 
     def _propagate(self, dt):
-        ''' Propagate the particle with one single step.
+        """ Propagate the particle with one single step.
 
         Parameters
         ----------
         dt : float
             The time step in real absolute physical unit (seconds).
-        '''
+        """
         newpos_xyz, newvel_xyz = self.leapfrog_kdk(
             t=None,
             posvel=[self.trace_pos_xyz[-1], self.trace_vel_xyz[-1]],
@@ -271,7 +271,7 @@ class MovingParticle(SmallBodyForceMixin):
         #   put these code lines here, not in the acc_func.
 
     def propagate(self, dt, nstep=None, min_height=0*u.m, max_height=None, verbose=True):
-        ''' Propagate the particle
+        """ Propagate the particle
         Parameters
         ----------
         dt : float
@@ -285,7 +285,7 @@ class MovingParticle(SmallBodyForceMixin):
             The minimum and maximum height value to halt the calculation. If the particle's height
             reaches these values, the calculation (propagation) halts with ``self.halt_code`` of
             ``"min_height"`` or ``"max_height"``. Interpreted as meters unit if float.
-        '''
+        """
         check_min = False
         if min_height is not None:
             check_min = True
@@ -327,8 +327,8 @@ class MovingParticle(SmallBodyForceMixin):
                     break
 
     def wrapup(self):
-        ''' Changes meaningful lists to numpy array
-        '''
+        """ Changes meaningful lists to numpy array
+        """
         _alltraces = ["trace_pos_xyz", "trace_pos_sph", "trace_vel_xyz",
                       "trace_height", "trace_heightpar", "trace_musun",
                       "trace_temp", "trace_time", "trace_rvec",

@@ -12,18 +12,18 @@ __all__ = ["change_to_quantity", "add_hdr", "parse_obj",
 
 
 def convert_fluxlambda2jy(fluxlambda, wlen):
-    ''' Converts W/m^2/m to Jy.
+    """ Converts W/m^2/m to Jy.
     fluxlambda : 1-D array
         The flux density (F_lambda) in W/m^2/m.
     wlen : 1-D array
         The wavelength in m.
-    '''
+    """
     freq = CC/wlen
     fluxlambda*wlen
 
 
 def change_to_quantity(x, desired='', to_value=False):
-    ''' Change the non-Quantity object to astropy Quantity.
+    """ Change the non-Quantity object to astropy Quantity.
 
     Parameters
     ----------
@@ -47,7 +47,7 @@ def change_to_quantity(x, desired='', to_value=False):
     If Quantity, transform to ``desired``. If ``desired = None``, return it as
     is. If not Quantity, multiply the ``desired``. ``desired = None``, return
     ``x`` with dimensionless unscaled unit.
-    '''
+    """
     def _copy(xx):
         try:
             xcopy = xx.copy()
@@ -83,7 +83,7 @@ def change_to_quantity(x, desired='', to_value=False):
 
 """
 def change_to_quantity(x, desired='', to_value=False):
-    ''' Change the non-Quantity object to astropy Quantity.
+    """ Change the non-Quantity object to astropy Quantity.
     Parameters
     ----------
     x : object changable to astropy Quantity
@@ -105,7 +105,7 @@ def change_to_quantity(x, desired='', to_value=False):
     If Quantity, transform to ``desired``. If ``desired = None``, return
     it as is. If not Quantity, multiply the ``desired``. ``desired =
     None``, return ``x`` with dimensionless unscaled unit.
-    '''
+    """
     if isinstance(x, u.Quantity):
         if isinstance(desired, str):
             desired = u.Unit(desired)
@@ -149,7 +149,7 @@ def add_hdr(header, key, val, desired_unit='', comment=None):
 
 
 def parse_obj(objfile):
-    ''' Parses the .obj file.
+    """ Parses the .obj file.
 
     Parameters
     ----------
@@ -159,7 +159,7 @@ def parse_obj(objfile):
     Return
     ------
     a dict object containing the raw str, vertices, facets, normals, and areas.
-    '''
+    """
     objstr = np.loadtxt(objfile, dtype=bytes).astype(str)
     vertices = objstr[objstr[:, 0] == 'v'][:, 1:].astype(float)
     facets = objstr[objstr[:, 0] == 'f'][:, 1:].astype(int)
@@ -189,7 +189,7 @@ def parse_obj(objfile):
 
 
 def lonlat2cart(lon, lat, degree=True, r=1):
-    ''' Converts the lon/lat coordinate to Cartesian coordinate.
+    """ Converts the lon/lat coordinate to Cartesian coordinate.
 
     Parameters
     ----------
@@ -210,7 +210,7 @@ def lonlat2cart(lon, lat, degree=True, r=1):
     ------
     a: 1-d array
         The calculated ``(x, y, z)`` array.
-    '''
+    """
     targ_unit = u.deg if degree else u.rad
 
     lon = change_to_quantity(lon, targ_unit, to_value=False)
@@ -220,7 +220,7 @@ def lonlat2cart(lon, lat, degree=True, r=1):
 
 
 def sph2cart(theta, phi, degree=True, r=1):
-    ''' Converts the spherical coordinate to Cartesian coordinate.
+    """ Converts the spherical coordinate to Cartesian coordinate.
 
     Parameters
     ----------
@@ -240,7 +240,7 @@ def sph2cart(theta, phi, degree=True, r=1):
     ------
     a: 1-d array
         The calculated ``(x, y, z)`` array.
-    '''
+    """
     targ_unit = u.deg if degree else u.rad
 
     th = change_to_quantity(theta, targ_unit, to_value=False)
@@ -259,7 +259,7 @@ def sph2cart(theta, phi, degree=True, r=1):
 
 
 def cart2sph(x, y, z, from_0=True, degree=True, to_lonlat=False):
-    ''' Converts the Cartesian coordinate to lon/lat coordinate
+    """ Converts the Cartesian coordinate to lon/lat coordinate
     Parameters
     ----------
     x, y, z : float
@@ -278,7 +278,7 @@ def cart2sph(x, y, z, from_0=True, degree=True, to_lonlat=False):
     ------
     a: 1-d array
         The ``(r, theta, phi)`` or ``(r, lon=phi, lat=90deg - theta)`` array.
-    '''
+    """
     r = np.sqrt(x**2 + y**2 + z**2)
     factor = R2D if degree else 1.
 
@@ -297,7 +297,7 @@ def cart2sph(x, y, z, from_0=True, degree=True, to_lonlat=False):
 
 
 def M_ec2fs(r_vec, spin_vec):
-    ''' The conversion matrix to convert ecliptic to frame system.
+    """ The conversion matrix to convert ecliptic to frame system.
 
     Parameters
     ----------
@@ -320,7 +320,7 @@ def M_ec2fs(r_vec, spin_vec):
     If ``a`` is a vector in ecliptic coordinate (in Cartesian (x, y, z)), ``m @
     a`` will give the components of vector ``a`` in frame system, where ``m``
     is the result of this function.
-    '''
+    """
     # Z_fs_ec = spin_vec.copy()
     Y_fs_ec = np.cross(spin_vec, -r_vec)
     X_fs_ec = np.cross(Y_fs_ec, spin_vec)
@@ -337,7 +337,7 @@ def M_ec2fs(r_vec, spin_vec):
 
 
 def M_fs2bf(phase):
-    ''' The conversion matrix to convert frame system to body-fixed frame.
+    """ The conversion matrix to convert frame system to body-fixed frame.
 
     Parameters
     ----------
@@ -355,7 +355,7 @@ def M_fs2bf(phase):
     If ``a`` is a vector in frame system (in Cartesian (x, y, z)), ``m @ a``
     will give the components of vector ``a`` in body-fixed frame, where ``m``
     is the result of this function.
-    '''
+    """
     c = np.cos(phase)
     s = np.sin(phase)
     m = np.array([[-c, -s, 0], [s, -c, 0], [0, 0, 1]])
@@ -363,7 +363,7 @@ def M_fs2bf(phase):
 
 
 def M_bf2ss(colat):
-    ''' The conversion matrix to convert body-fixed frame to surface system.
+    """ The conversion matrix to convert body-fixed frame to surface system.
 
     Parameters
     ----------
@@ -383,7 +383,7 @@ def M_bf2ss(colat):
     If ``a`` is vector in body-fixed frame (in Cartesian (x, y, z)), ``m @ a``
     will give the components of vector ``a`` in surface system, where ``m`` is
     the result of this function.
-    '''
+    """
     colat__deg = change_to_quantity(colat, u.deg, to_value=True)
 
     c = np.cos(colat__deg * D2R)
@@ -393,7 +393,7 @@ def M_bf2ss(colat):
 
 
 def calc_mu_vals(r_vec, spin_vec, phases, colats, full=False):
-    ''' The conversion matrix to convert body-fixed frame to surface system.
+    """ The conversion matrix to convert body-fixed frame to surface system.
 
     Parameters
     ----------
@@ -442,7 +442,7 @@ def calc_mu_vals(r_vec, spin_vec, phases, colats, full=False):
     If ``a`` is vector in body-fixed frame (in Cartesian (x, y, z)), ``m @ a``
     will give the components of vector ``a`` in surface system, where ``m`` is
     the result of this function.
-    '''
+    """
     colats__deg = change_to_quantity(colats, u.deg, to_value=True)
     phases__rad = change_to_quantity(phases, u.rad, to_value=True)
 
@@ -473,7 +473,7 @@ def calc_mu_vals(r_vec, spin_vec, phases, colats, full=False):
 
 @njit()
 def newton_iter_tpm(newu0_init, newu1, thpar, dZ, mu_sun, Nmax=5000, atol=1.e-8):
-    ''' Root finding using Newton's method
+    """ Root finding using Newton's method
 
     Parameters
     ----------
@@ -500,7 +500,7 @@ def newton_iter_tpm(newu0_init, newu1, thpar, dZ, mu_sun, Nmax=5000, atol=1.e-8)
     atol : float, optional
         If the absolute difference is smaller than ``atol``, the iteration will
         stop.
-    '''
+    """
     x0 = newu0_init
 
     for i in range(Nmax):
@@ -531,7 +531,7 @@ def calc_uarr_tpm(
         permanent_shadow_u=0,
         atol=1.e-8
 ):
-    '''
+    """
     Parameters
     ----------
     u_arr : 3d-array
@@ -570,7 +570,7 @@ def calc_uarr_tpm(
     atol : float, optional
         The absolute tolerance for the iteration to stop. (Stops if the T/T_EQM
         < `atol`).
-    '''
+    """
     ncolat, ntimep1, ndepth = u_arr.shape
     ntime = ntimep1 - 1
 
@@ -629,7 +629,7 @@ def calc_uarr_tpm(
 
 @njit(parallel=True)
 def calc_flux_tpm(fluxarr, wlen, tempsurf, mu_obss):
-    ''' Calculates the fulx at given wlen in W/m^2/m
+    """ Calculates the fulx at given wlen in W/m^2/m
 
     Parameters
     ----------
@@ -645,7 +645,7 @@ def calc_flux_tpm(fluxarr, wlen, tempsurf, mu_obss):
     mu_obs : 2-d array
         The cosine factor for the emission direction to the observer. The value
         at `tempsurf[i, j]` must be corresponding to the `mu_obs[i, j]`.
-    '''
+    """
     for k in nb.prange(len(wlen)):
         wl = wlen[k]
         factor1 = 2*HH*CC**2/wl**5

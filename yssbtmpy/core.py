@@ -20,7 +20,7 @@ __all__ = ["SmallBody"]
 
 
 class SmallBody():
-    ''' Spherical Small Body class
+    """ Spherical Small Body class
     Specified by physical parameters that are the body's characteristic, not
     time-variable ones (e.g., ephemerides).
 
@@ -65,7 +65,7 @@ class SmallBody():
         0             +-30          127.76      90
         any value     +-90          90          90
 
-    '''
+    """
     # TODO: Better to use setter and getter methods...///
     # TODO: What if a user input values with Quantity?
     #   Removing the units is not what is desired...
@@ -181,7 +181,7 @@ class SmallBody():
     def set_ecl(self, r_hel, hel_ecl_lon, hel_ecl_lat,
                 r_obs, obs_ecl_lon, obs_ecl_lat, alpha,
                 ephem_equinox='J2000.0', transform_equinox='J2000.0'):
-        '''
+        """
         Parameters
         ----------
         r_hel, r_obs : float, Quantity
@@ -207,7 +207,7 @@ class SmallBody():
         ``ephem_equinox=Time(eph['datetime_jd'], format='jd')``) and the
         equinox of ``hEcl-Lon`` and ``hEcl-Lat`` is calculated (as of 2019, it
         is J2000.0, so ``transform_equinox="J2000.0"``).
-        '''
+        """
         toQ = dict(to_value=False)
         self.r_hel = change_to_quantity(r_hel, u.au, **toQ)
         self.r_obs = change_to_quantity(r_obs, u.au, **toQ)
@@ -245,7 +245,7 @@ class SmallBody():
             pass
 
     def set_spin(self, spin_ecl_lon, spin_ecl_lat, rot_period):
-        ''' Set the spin vector
+        """ Set the spin vector
         Parameters
         ----------
         spin_ecl_lon, spin_ecl_lat : float, Quantity
@@ -254,7 +254,7 @@ class SmallBody():
 
         rot_period : float, Quantity
             The rotational period of the object (in seconds if `float`)
-        '''
+        """
         toQ = dict(to_value=False)
         self.spin_ecl_lon = change_to_quantity(spin_ecl_lon, u.deg, **toQ)
         self.spin_ecl_lat = change_to_quantity(spin_ecl_lat, u.deg, **toQ)
@@ -278,7 +278,7 @@ class SmallBody():
             pass
 
     def set_mass(self, diam_eff=None, mass=None, bulk_mass_den=None):
-        ''' Set and solve mass-related parameters (at least two of these must be given).
+        """ Set and solve mass-related parameters (at least two of these must be given).
         Parameters
         ----------
         diam_eff : float, Quantity, optional.
@@ -291,7 +291,7 @@ class SmallBody():
 
         bulk_mass_den : float, Quantity, optional.
             The bulk mass density (in kg/m^3 if `float`).
-        '''
+        """
         ps = solve_rmrho(radius=diam_eff/2, mass=mass, mass_den=bulk_mass_den)
         ps["diam_eff"] = 2*ps["radius"]
         for p in ["diam_eff", "mass", "bulk_mass_den", "acc_grav_equator"]:
@@ -318,7 +318,7 @@ class SmallBody():
             a_bond=None,
             phase_int=None
     ):
-        ''' Set and solve optical phase curve related parameters
+        """ Set and solve optical phase curve related parameters
         Parameters
         ----------
         hmag_vis, slope_par : float, optional.
@@ -340,7 +340,7 @@ class SmallBody():
         phase_int : float, optional.
             The phase integral. If not given, calculated based on the IAU H-G
             magnitude system (Bowell et al. 1989).
-        '''
+        """
         p1 = solve_pAG(p_vis=p_vis, a_bond=a_bond, slope_par=slope_par)
         p2 = solve_pDH(p_vis=p_vis, diam_eff=diam_eff, hmag_vis=hmag_vis)
         p3 = solve_Gq(slope_par=slope_par, phase_int=phase_int)
@@ -384,7 +384,7 @@ class SmallBody():
         self.phase_int = ps["phase_int"]
 
     def set_thermal(self, ti, emissivity, eta_beam=1):
-        ''' Set thermal model related paramters.
+        """ Set thermal model related paramters.
         Parameters
         ----------
         ti : float
@@ -400,7 +400,7 @@ class SmallBody():
             first-order correction to the roughness effect in TPM (not useful
             for phase angle larger than ~ 40 degrees). Default is 1.0 (no
             beaming effect).
-        '''
+        """
         toQ = dict(return_quantity=True)
         ps1 = solve_temp_eqm(temp_eqm=None,
                              a_bond=self.a_bond,
@@ -425,7 +425,7 @@ class SmallBody():
 
     # Currently due to the spline, nlat must be > 1
     def set_tpm(self, nlon=360, nlat=90, Zmax=10, dZ=0.2):
-        ''' TPM code related parameters.
+        """ TPM code related parameters.
         The attributes here are all non-dimensional!
         Notes
         -----
@@ -433,7 +433,7 @@ class SmallBody():
         int(np.around(Zmax//dZ))``, so if `Zmax` is not an integer multiple
         of `dZ`, say ``Zmax=10`` and ``dZ=0.15``, there will be
         ``int(np.around(66.66...)) = 67`` slabs.
-        '''
+        """
         self.nlon = nlon
         if nlat < 3:
             warn("Currently nlat < 3 is not supported. Internally I will use nlat = 3.")
@@ -453,7 +453,7 @@ class SmallBody():
             )
 
     def minimal_set(self, thermal_par, aspect_ang, temp_eqm=1):
-        ''' Set minimal model.
+        """ Set minimal model.
         Note
         ----
         When we just want to calculate the temperature on the asteroid, not
@@ -461,7 +461,7 @@ class SmallBody():
         detail about the spin. The spin direction is absorbed into the aspect
         angle. The spin period is absorbed into thermal paramter. Diameter does
         not affect the temperature, unless we are using the p-D-H relation.
-        '''
+        """
         toQ = dict(to_value=False)
         self.thermal_par = change_to_quantity(thermal_par, NOUNIT, **toQ)
         self.aspect_ang = change_to_quantity(aspect_ang, u.deg, **toQ)
@@ -488,7 +488,7 @@ class SmallBody():
             atol=1.e-8,
             verbose=False
     ):
-        ''' Calculate the temperature using TPM
+        """ Calculate the temperature using TPM
         Parameters
         ----------
         full : bool, optional.
@@ -515,7 +515,7 @@ class SmallBody():
         atol : float, optional
             The absolute tolerance for the iteration to stop. (Stops if the
             T/T_EQM < `atol`). See `util.calc_uarr_tpm` for more details.
-        '''
+        """
         self.min_iter = min_iter
         self.max_iter = max_iter
         if verbose and self.thermal_par < 0.1:
@@ -600,8 +600,8 @@ class SmallBody():
                 self.tempsurf = u_arr[:, :, 0]
 
     def calc_flux(self, wlen):
-        ''' Calculates flux in W/m^2/um
-        '''
+        """ Calculates flux in W/m^2/um
+        """
         phases = np.linspace(0, 2*PI - self.dlon, self.nlon)*u.rad
         # colats is set s.t. nlat=1 gives colat=90 deg.
         colats = np.linspace(0 + self.dlat/2, PI - self.dlat/2, self.nlat)*u.rad
@@ -623,7 +623,7 @@ class SmallBody():
         self.flux = fluxarr*np.pi*(self.radi_eff**2)
 
     def get_temp_1d(self, colat__deg, lon__deg):
-        ''' Return 1d array of temperature.
+        """ Return 1d array of temperature.
 
         Parameters
         ----------
@@ -638,12 +638,12 @@ class SmallBody():
         For performance issue, I didn't put any astropy quantity here. This
         function may be used hundreds of thousands of times for each
         simulation, so 1ms is not a small time delay.
-        '''
+        """
         temp = self.spl_uarr(colat__deg, lon__deg)
         return self.temp_eqm__K*temp.flatten()
 
     def get_temp_2d(self, colat__deg, lon__deg):
-        ''' Return 1d array of temperature.
+        """ Return 1d array of temperature.
 
         Parameters
         ----------
@@ -658,11 +658,11 @@ class SmallBody():
         For performance issue, I didn't put any astropy quantity here. This
         function may be used hundreds of thousands of times for each
         simulation, so 1ms is not a small time delay.
-        '''
+        """
         return self.temp_eqm__K*self.spl_uarr(colat__deg, lon__deg)
 
     def get_musun(self, colat__deg, lon__deg):
-        ''' Return 1d array of temperature.
+        """ Return 1d array of temperature.
 
         Parameters
         ----------
@@ -678,7 +678,7 @@ class SmallBody():
         For performance issue, I didn't put any astropy quantity here. This
         function may be used hundreds of thousands of times for each
         simulation, so 1ms is not a small time delay.
-        '''
+        """
         musun = self.spl_musun(colat__deg, lon__deg)
         musun[musun < 1.e-4] = 0
         # 1.e-4 corresponds to incidence angle of 89.994˚

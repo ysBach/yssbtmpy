@@ -8,7 +8,7 @@ __all__ = ["B_lambda", "b_lambda"]
 
 
 def B_lambda(wavelen, temperature):
-    ''' Calculates black body radiance [energy/time/area/length/sr] = [W/m2/m/sr]
+    """ Calculates black body radiance [energy/time/area/length/sr] = [W/m2/m/sr]
     Parameters
     ----------
     wavelen : float or `~Quantity`, `~numpy.ndarray` of such.
@@ -22,7 +22,7 @@ def B_lambda(wavelen, temperature):
     ------
     radiance : ndarray
         The black body radiance [energy/time/area/length/sr] = [W/m2/m/sr].
-    '''
+    """
     wl = change_to_quantity(wavelen, u.m, to_value=True)
     temp = change_to_quantity(temperature, u.K, to_value=True)
     coeff = 2*HH*CC**2 / wl**5
@@ -32,7 +32,7 @@ def B_lambda(wavelen, temperature):
 
 
 def b_lambda(wavelen, temperature):
-    ''' Calcualtes the small b function [1/wavelen].
+    """ Calcualtes the small b function [1/wavelen].
 
     Parameters
     ----------
@@ -47,7 +47,7 @@ def b_lambda(wavelen, temperature):
     ------
     radiance : ndarray
         The small b function [1/wavelen].
-    '''
+    """
     wl = change_to_quantity(wavelen, u.m, to_value=True)
     temp = change_to_quantity(temperature, u.K, to_value=True)
     norm = SIGMA_SB * temp**4
