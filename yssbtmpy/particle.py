@@ -15,8 +15,8 @@ from .util import cart2sph, change_to_quantity, sph2cart
 __all__ = ["MovingParticle"]
 
 
-# For easier handling of cart2sph, because input gets degrees of theta/phi and phi should be 0 to
-# 360...
+# For easier handling of cart2sph, because input gets degrees of theta/phi and
+# phi should be 0 to 360...
 CART2SPH_KW = dict(from_0=True, degree=True, to_lonlat=False)
 
 
@@ -40,7 +40,8 @@ class SmallBodyForceMixin:
     @staticmethod
     def _force_ther(r_um, temp, height_par, emissivity, val_Qprbar):
         r"""
-        Constant emissivity for surface is assumed, i.e., :math: `\epsilon_S = \bar{\epsilon_S}`.
+        Constant emissivity for surface is assumed, i.e., :math: `\epsilon_S =
+        \bar{\epsilon_S}`.
         """
         eda2 = emissivity*height_par*(r_um)**2
         f_ther = C_F_THER*val_Qprbar*eda2*temp**4
@@ -62,9 +63,9 @@ class SmallBodyForceMixin:
     @staticmethod
     def leapfrog_kdk(t, posvel, dt, acc_func, acc_start=None):
         """
-        To save time in acceleration calculation, if you give ``acc_start``, it will use it as the
-        acceleration of the starting point, which is the accelration of the ending point of the last
-        iteration.
+        To save time in acceleration calculation, if you give ``acc_start``, it
+        will use it as the acceleration of the starting point, which is the
+        accelration of the ending point of the last iteration.
         """
         pos, vel = posvel
         if acc_start is not None:
@@ -83,12 +84,14 @@ class MovingParticle(SmallBodyForceMixin):
         Parameters
         ----------
         radius, mass, mass_den : float or `~astropy.Quantity`
-            The radius, mass, and mass density of the particle. At least two of them must be given to
-            solve the mass-radius-density equation for a spherical particle.
+            The radius, mass, and mass density of the particle. At least two of
+            them must be given to solve the mass-radius-density equation for a
+            spherical particle.
 
         r0_radius : float, optional
-            The r0 parameter (the maximum radius of the regolith to be considered for reflected solar
-            radiation and thermal radiation) in the unit of the smallbody's radius.
+            The r0 parameter (the maximum radius of the regolith to be
+            considered for reflected solar radiation and thermal radiation) in
+            the unit of the smallbody's radius.
         """
         self.smallbody = smallbody
         self.r_sb = self.smallbody.diam_eff.to(u.m)/2
@@ -128,12 +131,14 @@ class MovingParticle(SmallBodyForceMixin):
         Parameters
         ----------
         func_Qprbar : function object
-            The function which returns Qprbar value for a given pair of temperature and radius in
-            Kelvins and micro-meters units, respectively. It **must** get inputs in the order of
-            temperature and radius (at least currently).
+            The function which returns Qprbar value for a given pair of
+            temperature and radius in Kelvins and micro-meters units,
+            respectively. It **must** get inputs in the order of temperature
+            and radius (at least currently).
 
         func_Qprbar_sun : function object, optional
-            The function which returns Qprbar value for the solar spectrum for a given radius in
+            The function which returns Qprbar value for the solar spectrum for
+            a given radius in
             micro-meters unit.
         """
         self.func_Qprbar = func_Qprbar
@@ -154,8 +159,9 @@ class MovingParticle(SmallBodyForceMixin):
         Parameters
         ----------
         colat, lon : float or `~astropy.Quantity`
-            The colatitude (``theta`` of ``(r, theta, phi)`` notation) and the longitude (``phi`` of
-            the notation, which is 0 at midnight, 90 deg at sunrise) of the initial position.
+            The colatitude (``theta`` of ``(r, theta, phi)`` notation) and the
+            longitude (``phi`` of the notation, which is 0 at midnight, 90 deg
+            at sunrise) of the initial position.
         """
         height_init = change_to_quantity(height, u.m, to_value=False)
         heignt_init_m = (height_init.to(u.m)).value
@@ -188,8 +194,8 @@ class MovingParticle(SmallBodyForceMixin):
         Parameters
         ----------
         pos_xyz : 1-d array of float
-            The position in XYZ format in meters units. For performance issue, it's recommended to use
-            float than `~astropy.Quantity`.
+            The position in XYZ format in meters units. For performance issue,
+            it's recommended to use float than `~astropy.Quantity`.
         """
         r_sph, th, ph = cart2sph(*pos_xyz, **CART2SPH_KW)
 
@@ -265,10 +271,11 @@ class MovingParticle(SmallBodyForceMixin):
         self.trace_heightpar.append(height_par)
         self.trace_musun.append(self.get_musun(newpos_sph[1], newpos_sph[2]))
         self.trace_temp.append(self.get_temp_1d(newpos_sph[1], newpos_sph[2]))
-        # NOTE: some of these append are not included in the acc_func, because if we use leapfrog_dkd,
-        #   the times at which we calculate the acceleration must be different form those we use for
-        #   calculate the positions. For this reason, I sacrificed a bit of (computational) time and
-        #   put these code lines here, not in the acc_func.
+        # NOTE: some of these append are not included in the acc_func, because
+        #   if we use leapfrog_dkd, the times at which we calculate the
+        #   acceleration must be different form those we use for calculate the
+        #   positions. For this reason, I sacrificed a bit of (computational)
+        #   time and put these code lines here, not in the acc_func.
 
     def propagate(self, dt, nstep=None, min_height=0*u.m, max_height=None, verbose=True):
         """ Propagate the particle
@@ -278,13 +285,14 @@ class MovingParticle(SmallBodyForceMixin):
             The time step in real absolute physical unit (seconds).
 
         nstep : int or None
-            The number of steps to propagate. If `None`, it is halted only when the min_height or
-            max_height is reached.
+            The number of steps to propagate. If `None`, it is halted only when
+            the min_height or max_height is reached.
 
         min_height, max_height : float, `~astropy.Quantity`
-            The minimum and maximum height value to halt the calculation. If the particle's height
-            reaches these values, the calculation (propagation) halts with ``self.halt_code`` of
-            ``"min_height"`` or ``"max_height"``. Interpreted as meters unit if float.
+            The minimum and maximum height value to halt the calculation. If
+            the particle's height reaches these values, the calculation
+            (propagation) halts with ``self.halt_code`` of ``"min_height"`` or
+            ``"max_height"``. Interpreted as meters unit if float.
         """
         check_min = False
         if min_height is not None:
@@ -338,9 +346,9 @@ class MovingParticle(SmallBodyForceMixin):
         for attr in _alltraces:
             setattr(self, attr, np.array(getattr(self, attr)))
 
-            # NOTE: trace_a_sun is nothing but a constant scalar for all
-            #   the time, but just for the consistency, I let it make a
-            #   1-d ndarray for it too.
+            # NOTE: trace_a_sun is nothing but a constant scalar for all the
+            #   time, but just for the consistency, I let it make a 1-d ndarray
+            #   for it too.
             self.trace_speed = np.linalg.norm(self.trace_vel_xyz, axis=1)
             self.trace_a_sun = np.linalg.norm(self.trace_a_sun_xyz, axis=1)
             self.trace_a_ref = np.linalg.norm(self.trace_a_ref_xyz, axis=1)
