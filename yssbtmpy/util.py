@@ -1,9 +1,11 @@
+from typing import Union
+
 import numba as nb
 import numpy as np
 from astropy import units as u
 from numba import njit
 
-from .constants import D2R, PI, R2D, HH, CC, KB
+from .constants import CC, D2R, HH, KB, PI, R2D
 
 __all__ = ["change_to_quantity", "add_hdr", "parse_obj",
            "lonlat2cart", "sph2cart", "cart2sph", "M_ec2fs", "M_bf2ss",
@@ -22,7 +24,7 @@ def convert_fluxlambda2jy(fluxlambda, wlen):
     fluxlambda*wlen
 
 
-def change_to_quantity(x, desired='', to_value=False):
+def change_to_quantity(x, desired='', to_value=False) -> Union[u.Quantity, float]:
     """ Change the non-Quantity object to astropy Quantity.
 
     Parameters
@@ -127,7 +129,7 @@ def parse_obj(objfile):
                 normals=facet_normals_ast, areas=facet_areas)
 
 
-def lonlat2cart(lon, lat, degree=True, r=1):
+def lonlat2cart(lon, lat, degree=True, r=1) -> np.ndarray:
     """ Converts the lon/lat coordinate to Cartesian coordinate.
 
     Parameters
@@ -158,7 +160,7 @@ def lonlat2cart(lon, lat, degree=True, r=1):
     return sph2cart(theta=theta, phi=lon, r=r)
 
 
-def sph2cart(theta, phi, degree=True, r=1):
+def sph2cart(theta, phi, degree=True, r=1) -> np.ndarray:
     """ Converts the spherical coordinate to Cartesian coordinate.
 
     Parameters
@@ -197,7 +199,7 @@ def sph2cart(theta, phi, degree=True, r=1):
     return a
 
 
-def cart2sph(x, y, z, from_0=True, degree=True, to_lonlat=False):
+def cart2sph(x, y, z, from_0=True, degree=True, to_lonlat=False) -> np.ndarray:
     """ Converts the Cartesian coordinate to lon/lat coordinate
     Parameters
     ----------
@@ -235,7 +237,7 @@ def cart2sph(x, y, z, from_0=True, degree=True, to_lonlat=False):
     return a
 
 
-def M_ec2fs(r_vec, spin_vec):
+def M_ec2fs(r_vec, spin_vec) -> np.ndarray:
     """ The conversion matrix to convert ecliptic to frame system.
 
     Parameters
@@ -275,7 +277,7 @@ def M_ec2fs(r_vec, spin_vec):
     return m
 
 
-def M_fs2bf(phase):
+def M_fs2bf(phase) -> np.ndarray:
     """ The conversion matrix to convert frame system to body-fixed frame.
 
     Parameters
@@ -301,7 +303,7 @@ def M_fs2bf(phase):
     return m
 
 
-def M_bf2ss(colat):
+def M_bf2ss(colat) -> np.ndarray:
     """ The conversion matrix to convert body-fixed frame to surface system.
 
     Parameters
@@ -331,7 +333,7 @@ def M_bf2ss(colat):
     return m
 
 
-def calc_mu_vals(r_vec, spin_vec, phases, colats, full=False):
+def calc_mu_vals(r_vec, spin_vec, phases, colats, full=False) -> np.ndarray:
     """ The conversion matrix to convert body-fixed frame to surface system.
 
     Parameters

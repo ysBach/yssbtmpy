@@ -487,7 +487,7 @@ class SmallBody():
             retain_last_uarr=False,
             atol=1.e-8,
             verbose=False
-    ):
+    ) -> None:
         """ Calculate the temperature using TPM
         Parameters
         ----------
