@@ -81,67 +81,6 @@ def change_to_quantity(x, desired='', to_value=False):
     return ux
 
 
-"""
-def change_to_quantity(x, desired='', to_value=False):
-    """ Change the non-Quantity object to astropy Quantity.
-    Parameters
-    ----------
-    x : object changable to astropy Quantity
-        The input to be changed to a Quantity. If a Quantity is given,
-        ``x`` is changed to the ``desired``, i.e., ``x.to(desired)``.
-    desired : str or astropy Unit
-        The desired unit for ``x``.
-    to_value : bool, optional.
-        Whether to return as scalar value. If `True`, just the
-        value(s) of the ``desired`` unit will be returned after
-        conversion.
-
-    Return
-    ------
-    ux: Quantity
-
-    Note
-    ----
-    If Quantity, transform to ``desired``. If ``desired = None``, return
-    it as is. If not Quantity, multiply the ``desired``. ``desired =
-    None``, return ``x`` with dimensionless unscaled unit.
-    """
-    if isinstance(x, u.Quantity):
-        if isinstance(desired, str):
-            desired = u.Unit(desired)
-
-        try:
-            ux = x.to(desired)
-        except u.UnitConversionError:
-            raise ValueError("If you use astropy.Quantity, you should use "
-                             + f"unit convertible to `desired`. \nYou gave "
-                             + f'"{x.unit}", unconvertible with "{desired}".')
-
-        if to_value:
-            ux = ux.value
-
-    else:  # if no unit
-        try:  # if possible, copy just in case
-            ux = x.copy()
-        except AttributeError:
-            import copy
-            ux = copy.deepcopy(x)
-
-        if not to_value:  # if you wanted Quantity
-            if ux is None:  # if a single None
-                return None
-            elif np.any(np.equal(ux, None)):  # If many None
-                return np.empty_like(ux, dtype=object)
-                # dtype=object will return `None`, not just arbitrary values
-            elif isinstance(desired, str):
-                desired = u.Unit(desired)
-
-            ux = ux * desired
-
-    return ux
-"""
-
-
 def add_hdr(header, key, val, desired_unit='', comment=None):
     _val = change_to_quantity(val, desired=desired_unit, to_value=True)
     header[key] = (_val, comment)
