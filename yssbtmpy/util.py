@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Any, List
 
 import numba as nb
 import numpy as np
@@ -7,24 +7,37 @@ from numba import njit
 
 from .constants import CC, D2R, HH, KB, PI, R2D
 
-__all__ = ["change_to_quantity", "add_hdr", "parse_obj",
-           "lonlat2cart", "sph2cart", "cart2sph", "M_ec2fs", "M_bf2ss",
-           "calc_mu_vals",
-           "newton_iter_tpm", "calc_uarr_tpm"]
+__all__ = [
+    "F_OR_Q", "F_OR_ARR", "F_OR_Q_OR_ARR",
+    "change_to_quantity", "add_hdr", "parse_obj",
+    "lonlat2cart", "sph2cart", "cart2sph",
+    "calc_aspect_ang",
+    "M_ec2fs", "M_bf2ss",
+    "calc_mu_vals",
+    "newton_iter_tpm", "calc_uarr_tpm"
+]
 
 
-def convert_fluxlambda2jy(fluxlambda, wlen):
-    """ Converts W/m^2/m to Jy.
-    fluxlambda : 1-D array
-        The flux density (F_lambda) in W/m^2/m.
-    wlen : 1-D array
-        The wavelength in m.
-    """
-    freq = CC/wlen
-    fluxlambda*wlen
+F_OR_Q = Union[u.Quantity, float]
+F_OR_ARR = Union[np.ndarray, float]
+F_OR_Q_OR_ARR = Union[u.Quantity, float, np.ndarray]
+
+# def convert_fluxlambda2jy(fluxlambda, wlen):
+#     """ Converts W/m^2/m to Jy.
+#     fluxlambda : 1-D array
+#         The flux density (F_lambda) in W/m^2/m.
+#     wlen : 1-D array
+#         The wavelength in m.
+#     """
+#     freq = CC/wlen
+#     fluxlambda*wlen
 
 
-def change_to_quantity(x, desired='', to_value=False) -> Union[u.Quantity, float]:
+def change_to_quantity(
+    x: F_OR_Q_OR_ARR,
+    desired: str | u.Unit = '',
+    to_value: bool = False
+) -> F_OR_Q_OR_ARR:
     """ Change the non-Quantity object to astropy Quantity.
 
     Parameters
@@ -83,7 +96,7 @@ def change_to_quantity(x, desired='', to_value=False) -> Union[u.Quantity, float
     return ux
 
 
-def add_hdr(header, key, val, desired_unit='', comment=None):
+def add_hdr(header, key: str, val, desired_unit='', comment=None):
     _val = change_to_quantity(val, desired=desired_unit, to_value=True)
     header[key] = (_val, comment)
     return header
@@ -129,7 +142,7 @@ def parse_obj(objfile):
                 normals=facet_normals_ast, areas=facet_areas)
 
 
-def lonlat2cart(lon, lat, degree=True, r=1) -> np.ndarray:
+def lonlat2cart(lon: F_OR_Q, lat: F_OR_Q, degree: bool = True, r: F_OR_Q = 1) -> np.ndarray:
     """ Converts the lon/lat coordinate to Cartesian coordinate.
 
     Parameters
@@ -160,7 +173,7 @@ def lonlat2cart(lon, lat, degree=True, r=1) -> np.ndarray:
     return sph2cart(theta=theta, phi=lon, r=r)
 
 
-def sph2cart(theta, phi, degree=True, r=1) -> np.ndarray:
+def sph2cart(theta: F_OR_Q, phi: F_OR_Q, degree: bool = True, r: F_OR_Q = 1) -> np.ndarray:
     """ Converts the spherical coordinate to Cartesian coordinate.
 
     Parameters
@@ -199,7 +212,8 @@ def sph2cart(theta, phi, degree=True, r=1) -> np.ndarray:
     return a
 
 
-def cart2sph(x, y, z, from_0=True, degree=True, to_lonlat=False) -> np.ndarray:
+def cart2sph(x: F_OR_Q, y: F_OR_Q, z: F_OR_Q, from_0: bool = True,
+             degree: bool = True, to_lonlat: bool = False) -> np.ndarray:
     """ Converts the Cartesian coordinate to lon/lat coordinate
     Parameters
     ----------
@@ -226,7 +240,7 @@ def cart2sph(x, y, z, from_0=True, degree=True, to_lonlat=False) -> np.ndarray:
     theta = factor*np.arccos(z/r)
     phi = factor*np.arctan2(y, x)  # -180 to +180 deg
     if from_0:
-        phi = phi%(factor*2*PI)
+        phi = phi % (factor*2*PI)
 
     if to_lonlat:
         lat = factor*PI/2 - theta
@@ -237,7 +251,72 @@ def cart2sph(x, y, z, from_0=True, degree=True, to_lonlat=False) -> np.ndarray:
     return a
 
 
-def M_ec2fs(r_vec, spin_vec) -> np.ndarray:
+def calc_aspect_ang(
+        r_hel_vec: np.ndarray,
+        r_obs_vec: np.ndarray,
+        spin_vec: np.ndarray,
+        phase_ang: F_OR_Q,
+) -> List[np.ndarray]:
+    """ Calculate the aspect angles (sun & observer) and delta-longitude.
+
+    Parameters
+    ----------
+    r_hel_vec, r_obs_vec, spin_vec : 1-d array
+        The heliocentric and observer-centric vectors to the body, and the spin
+        vector, all in the ecliptic coordinate.
+
+    phase_ang : float or ~astropy.Quantity
+        The phase angle of the body. It does not necessarily have the sign (see
+        Notes).
+
+    Notes
+    -----
+    Using the sign(alpha) convention from DelboM 2004 PhDT p.144,
+      sign([(-r_obs) x (-r_sun)] \cdot spin) = sign(alpha) = sign(dphi)
+    where dphi is the longitude difference between sub-solar and sub-observer
+    points. In words, alpha and dphi are positive if we are looking at the
+    morning side. In the calculation, `phase_ang`(alpha) is used only for the
+    calculation of dphi. The sign of alpha is determined within the code and
+    used as `sign*np.abs(phase_ang)`.
+    """
+    r_hel_hat = r_hel_vec/np.linalg.norm(r_hel_vec)
+    r_obs_hat = r_obs_vec/np.linalg.norm(r_obs_vec)
+    # r_obs_hat = lonlat2cart(obs_ecl_helio.lon,
+    #                         obs_ecl_helio.lat)
+
+    aspect_ang = change_to_quantity(
+        np.rad2deg(np.arccos(np.inner(-1*r_hel_hat, spin_vec))),
+        u.deg,
+        to_value=False
+    )
+    # aux_cos_sun = np.inner(r_hel_hat, self.spin_vec)
+    # self.aspect_ang = (180-np.rad2deg(np.arccos(aux_cos_sun)))*u.deg
+    aspect_ang_obs = change_to_quantity(
+        np.rad2deg(np.arccos(np.inner(-1*r_obs_hat, spin_vec))),
+        u.deg,
+        to_value=False
+    )
+    # aux_cos_obs = np.inner(r_obs_hat, self.spin_vec)
+    # aspect_ang_obs = (180-np.rad2deg(np.arccos(aux_cos_obs)))*u.deg
+
+    sign = np.sign(np.inner(np.cross(r_obs_hat, r_hel_hat), spin_vec))
+
+    # cos(dphi) = [(cos(asp_sun)cos(asp_obs) - cos(alpha))
+    # / sin(asp_sun)sin(asp_obs)]
+    cc = np.cos(aspect_ang)*np.cos(aspect_ang_obs)
+    ss = np.sin(aspect_ang)*np.sin(aspect_ang_obs)
+    cos_dphi = ((cc - np.cos(sign*np.abs(phase_ang)))/ss).value
+    cos_dphi = cos_dphi - np.sign(cos_dphi)*1.e-10
+    dlon_sol_obs = sign*np.rad2deg(np.arccos(cos_dphi))*u.deg
+    # self.pos_sub_sol = (self.aspect_ang, 180*u.deg)
+    # self.pos_sub_obs = (self.aspect_ang_obs, phi_obs)
+
+    # FIXME: I am a bit uncertain about the dlon calculation...
+    # (2023-01-10 22:26:50 (KST: GMT+09:00) ysBach)
+    return aspect_ang, aspect_ang_obs, dlon_sol_obs
+
+
+def M_ec2fs(r_vec: np.ndarray, spin_vec: np.ndarray) -> np.ndarray:
     """ The conversion matrix to convert ecliptic to frame system.
 
     Parameters
@@ -277,7 +356,7 @@ def M_ec2fs(r_vec, spin_vec) -> np.ndarray:
     return m
 
 
-def M_fs2bf(phase) -> np.ndarray:
+def M_fs2bf(phase: F_OR_ARR) -> np.ndarray:
     """ The conversion matrix to convert frame system to body-fixed frame.
 
     Parameters
@@ -303,7 +382,7 @@ def M_fs2bf(phase) -> np.ndarray:
     return m
 
 
-def M_bf2ss(colat) -> np.ndarray:
+def M_bf2ss(colat: F_OR_Q_OR_ARR) -> np.ndarray:
     """ The conversion matrix to convert body-fixed frame to surface system.
 
     Parameters
@@ -333,7 +412,8 @@ def M_bf2ss(colat) -> np.ndarray:
     return m
 
 
-def calc_mu_vals(r_vec, spin_vec, phases, colats, full=False) -> np.ndarray:
+def calc_mu_vals(r_vec: np.ndarray, spin_vec: np.ndarray, phases: F_OR_Q_OR_ARR,
+                 colats: F_OR_Q_OR_ARR, full: bool = False) -> np.ndarray:
     """ The conversion matrix to convert body-fixed frame to surface system.
 
     Parameters
@@ -404,7 +484,8 @@ def calc_mu_vals(r_vec, spin_vec, phases, colats, full=False) -> np.ndarray:
     for M3 in M3arr:
         dirs.append(M3 @ M2arr @ M1 @ -(r_vec/np.linalg.norm(r_vec)))
     solar_dirs = np.array(dirs)
-    mu_vals = solar_dirs.copy()[:, :, 2]  # Z component = cos i_sun for mu_sun case.
+    # Z component = cos i_sun for mu_sun case.
+    mu_vals = solar_dirs.copy()[:, :, 2]
     mu_vals[mu_vals < 0] = 0
 
     if full:
@@ -444,7 +525,7 @@ def newton_iter_tpm(newu0_init, newu1, thpar, dZ, mu_sun, Nmax=5000, atol=1.e-8)
     """
     x0 = newu0_init
 
-    for i in range(Nmax):
+    for _ in range(Nmax):
         f0 = x0**4 - mu_sun - thpar / dZ * (newu1 - x0)
         slope = 4 * x0**3 + thpar / dZ
         x1 = x0 - f0 / slope

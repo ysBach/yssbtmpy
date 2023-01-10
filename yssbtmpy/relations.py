@@ -4,7 +4,7 @@ import numpy as np
 from astropy import units as u
 
 from .constants import NOUNIT, PI, S1AU, SIGMA_SB, TIU
-from .util import change_to_quantity
+from .util import F_OR_ARR, F_OR_Q, F_OR_Q_OR_ARR, change_to_quantity
 
 # TODO: maybe make it to accept terminal command lines.
 
@@ -23,7 +23,7 @@ def _count_not_None(*args) -> int:
     return cnt
 
 
-def _setup_pars(pardict, unitdict, to_value) -> dict:
+def _setup_pars(pardict: dict, unitdict: dict, to_value: bool) -> dict:
     newpars = {}
     for k, v in pardict.items():
         newpar = change_to_quantity(v, desired=unitdict[k], to_value=to_value)
@@ -31,7 +31,7 @@ def _setup_pars(pardict, unitdict, to_value) -> dict:
     return newpars
 
 
-def _i_should_solve(pardict) -> bool:
+def _i_should_solve(pardict: dict) -> bool:
     N_pars = len(pardict)
     pars = list(pardict.values())
     N_not_None = _count_not_None(*pars)
@@ -56,7 +56,7 @@ def _i_should_solve(pardict) -> bool:
 #     return vals
 
 
-def rot_omega2h(radps=None, degps=None):
+def rot_omega2h(radps: F_OR_ARR = None, degps: F_OR_ARR = None):
     if _count_not_None(radps, degps) != 1:
         raise ValueError("One and only one of [radps, degps] must be given.")
 
@@ -67,12 +67,16 @@ def rot_omega2h(radps=None, degps=None):
         return 360/(degps*3600)
 
 
-def h2rot_omega(hour):
+def h2rot_omega(hour: F_OR_ARR):
     return 2*PI/(hour*3600)
 
 
-def solve_Gq(slope_par=None, phase_int=None, classical=False,
-             return_quantity=True) -> dict:
+def solve_Gq(
+        slope_par: F_OR_Q_OR_ARR = None,
+        phase_int: F_OR_Q_OR_ARR = None,
+        classical: bool = False,
+        return_quantity: bool = True
+) -> dict:
     """ Calculates the phase integral of IAU HG system.
 
     Notes
@@ -141,8 +145,13 @@ def solve_Gq(slope_par=None, phase_int=None, classical=False,
     return ps
 
 
-def solve_pAG(p_vis=None, a_bond=None, slope_par=None, classical=False,
-              return_quantity=True) -> dict:
+def solve_pAG(
+        p_vis: F_OR_Q_OR_ARR = None,
+        a_bond: F_OR_Q_OR_ARR = None,
+        slope_par: F_OR_Q_OR_ARR = None,
+        classical: bool = False,
+        return_quantity: bool = True
+) -> dict:
     """ Solves the albedo relations from IAU H, G magnitude system.
     Note
     ----
@@ -217,8 +226,13 @@ def solve_pAG(p_vis=None, a_bond=None, slope_par=None, classical=False,
     return ps
 
 
-def solve_pDH(p_vis=None, diam_eff=None, hmag_vis=None, d0=1329,
-              return_quantity=True) -> dict:
+def solve_pDH(
+        p_vis: F_OR_Q_OR_ARR = None,
+        diam_eff: F_OR_Q_OR_ARR = None,
+        hmag_vis: F_OR_Q_OR_ARR = None,
+        d0: F_OR_Q = 1329,
+        return_quantity: bool = True
+) -> dict:
     """ Get one of geometric albdeo, size, or absolute magnitude.
     Note
     ----
@@ -297,8 +311,14 @@ def solve_pDH(p_vis=None, diam_eff=None, hmag_vis=None, d0=1329,
     return ps
 
 
-def solve_temp_eqm(temp_eqm=None, a_bond=None, eta_beam=None, r_hel=None,
-                   emissivity=None, return_quantity=True) -> dict:
+def solve_temp_eqm(
+        temp_eqm: F_OR_Q_OR_ARR = None,
+        a_bond: F_OR_Q_OR_ARR = None,
+        eta_beam: F_OR_Q_OR_ARR = None,
+        r_hel: F_OR_Q_OR_ARR = None,
+        emissivity: F_OR_Q_OR_ARR = None,
+        return_quantity: bool = True
+) -> dict:
     """ Solve the equilibrium temperature formula
     Note
     ----
@@ -371,8 +391,14 @@ def solve_temp_eqm(temp_eqm=None, a_bond=None, eta_beam=None, r_hel=None,
     return ps
 
 
-def solve_thermal_par(thermal_par=None, ti=None, rot_period=None,
-                      temp_eqm=None, emissivity=None, return_quantity=True) -> dict:
+def solve_thermal_par(
+        thermal_par: F_OR_Q_OR_ARR = None,
+        ti: F_OR_Q_OR_ARR = None,
+        rot_period: F_OR_Q_OR_ARR = None,
+        temp_eqm: F_OR_Q_OR_ARR = None,
+        emissivity: F_OR_Q_OR_ARR = None,
+        return_quantity: bool = True
+) -> dict:
     """ Solves the thermal parameter (Theta) equation
 
     Parameters
@@ -442,7 +468,12 @@ def solve_thermal_par(thermal_par=None, ti=None, rot_period=None,
     return ps
 
 
-def solve_rmrho(radius=None, mass=None, mass_den=None, return_quantity=True) -> dict:
+def solve_rmrho(
+        radius: F_OR_Q_OR_ARR = None,
+        mass: F_OR_Q_OR_ARR = None,
+        mass_den: F_OR_Q_OR_ARR = None,
+        return_quantity: bool = True
+) -> dict:
     """ Solves the radius, mass, density relation for a homogeneous spehre.
     Parameters
     ----------
@@ -479,7 +510,11 @@ def solve_rmrho(radius=None, mass=None, mass_den=None, return_quantity=True) -> 
     return ps
 
 
-def solve_pw(rot_period=None, rot_omega=None, return_quantity=True) -> dict:
+def solve_pw(
+        rot_period: F_OR_Q_OR_ARR = None,
+        rot_omega: F_OR_Q_OR_ARR = None,
+        return_quantity: bool = True
+) -> dict:
     """ Solves the rotational period and angular speed equation.
 
     Parameters
@@ -514,7 +549,11 @@ def solve_pw(rot_period=None, rot_omega=None, return_quantity=True) -> dict:
     return ps
 
 
-def G2q(slope_par=0.15, classical=False, return_quantity=True) -> u.Quantity:
+def G2q(
+        slope_par: F_OR_Q_OR_ARR = 0.15,
+        classical: bool = False,
+        return_quantity: bool = True
+) -> u.Quantity:
     """ Convenience function of ``solve_qG``.
     """
     return solve_Gq(slope_par=slope_par,
@@ -523,7 +562,11 @@ def G2q(slope_par=0.15, classical=False, return_quantity=True) -> u.Quantity:
                     return_quantity=return_quantity)["phase_int"]
 
 
-def q2G(phase_int=0.35, classical=False, return_quantity=True) -> u.Quantity:
+def q2G(
+        phase_int: F_OR_Q_OR_ARR = 0.35,
+        classical: bool = False,
+        return_quantity: bool = True
+) -> u.Quantity:
     """ Convenience function of ``solve_qG``.
     """
     return solve_Gq(slope_par=None,
@@ -532,7 +575,12 @@ def q2G(phase_int=0.35, classical=False, return_quantity=True) -> u.Quantity:
                     return_quantity=return_quantity)["slope_par"]
 
 
-def pG2A(p_vis, slope_par=0.15, classical=False, return_quantity=True) -> u.Quantity:
+def pG2A(
+        p_vis: F_OR_Q_OR_ARR,
+        slope_par: F_OR_Q_OR_ARR = 0.15,
+        classical: bool = False,
+        return_quantity: bool = True
+) -> u.Quantity:
     """ Convenience function of ``solve_pAG``.
     """
     return solve_pAG(p_vis=p_vis,
@@ -542,7 +590,12 @@ def pG2A(p_vis, slope_par=0.15, classical=False, return_quantity=True) -> u.Quan
                      return_quantity=return_quantity)["a_bond"]
 
 
-def pA2G(p_vis, a_bond=0.1, classical=False, return_quantity=True) -> u.Quantity:
+def pA2G(
+        p_vis: F_OR_Q_OR_ARR,
+        a_bond=0.1,
+        classical: bool = False,
+        return_quantity: bool = True
+) -> u.Quantity:
     """ Convenience function of ``solve_pAG``.
     """
     return solve_pAG(p_vis=p_vis,
@@ -552,7 +605,12 @@ def pA2G(p_vis, a_bond=0.1, classical=False, return_quantity=True) -> u.Quantity
                      return_quantity=return_quantity)["slope_par"]
 
 
-def AG2p(a_bond, slope_par=0.15, classical=False, return_quantity=True) -> u.Quantity:
+def AG2p(
+        a_bond: F_OR_Q_OR_ARR,
+        slope_par: F_OR_Q_OR_ARR = 0.15,
+        classical: bool = False,
+        return_quantity: bool = True
+) -> u.Quantity:
     """ Convenience function of ``solve_pAG``.
     """
     return solve_pAG(p_vis=None,
@@ -562,7 +620,12 @@ def AG2p(a_bond, slope_par=0.15, classical=False, return_quantity=True) -> u.Qua
                      return_quantity=return_quantity)["p_vis"]
 
 
-def pD2H(p_vis, diam_eff=1, d0=1329, return_quantity=True) -> u.Quantity:
+def pD2H(
+        p_vis: F_OR_Q_OR_ARR,
+        diam_eff: F_OR_Q_OR_ARR = 1,
+        d0: F_OR_Q_OR_ARR = 1329,
+        return_quantity: bool = True
+) -> u.Quantity:
     """ Convenience function of ``solve_pDH``.
     """
     return solve_pDH(p_vis=p_vis,
@@ -572,7 +635,12 @@ def pD2H(p_vis, diam_eff=1, d0=1329, return_quantity=True) -> u.Quantity:
                      return_quantity=return_quantity)["hmag_vis"]
 
 
-def pH2D(p_vis, hmag_vis, d0=1329, return_quantity=True) -> u.Quantity:
+def pH2D(
+        p_vis: F_OR_Q_OR_ARR,
+        hmag_vis: F_OR_Q_OR_ARR,
+        d0=1329,
+        return_quantity: bool = True
+) -> u.Quantity:
     """ Convenience function of ``solve_pDH``.
     """
     return solve_pDH(p_vis=p_vis,
@@ -582,7 +650,12 @@ def pH2D(p_vis, hmag_vis, d0=1329, return_quantity=True) -> u.Quantity:
                      return_quantity=return_quantity)["diam_eff"]
 
 
-def DH2p(diam_eff, hmag_vis, d0=1329, return_quantity=True) -> u.Quantity:
+def DH2p(
+        diam_eff: F_OR_Q_OR_ARR,
+        hmag_vis: F_OR_Q_OR_ARR,
+        d0: F_OR_Q_OR_ARR = 1329,
+        return_quantity: bool = True
+) -> u.Quantity:
     """ Convenience function of ``solve_pDH``.
     """
     return solve_pDH(p_vis=None,
@@ -592,8 +665,13 @@ def DH2p(diam_eff, hmag_vis, d0=1329, return_quantity=True) -> u.Quantity:
                      return_quantity=return_quantity)["p_vis"]
 
 
-def T_eqm(a_bond, eta_beam=1.0, r_hel=1.0, emissivity=0.9,
-          return_quantity=True) -> u.Quantity:
+def T_eqm(
+        a_bond: F_OR_Q_OR_ARR,
+        eta_beam: F_OR_Q_OR_ARR = 1.0,
+        r_hel: F_OR_Q_OR_ARR = 1.0,
+        emissivity: F_OR_Q_OR_ARR = 0.9,
+        return_quantity: bool = True
+) -> u.Quantity:
     """ Convenience function of ``solve_Teqm``.
     """
     return solve_temp_eqm(a_bond=a_bond,
@@ -603,7 +681,13 @@ def T_eqm(a_bond, eta_beam=1.0, r_hel=1.0, emissivity=0.9,
                           return_quantity=return_quantity)["temp_eqm"]
 
 
-def Thetapar(ti, temp_eqm, rot_omega=None, rot_period=None, emissivity=0.9) -> u.Quantity:
+def Thetapar(
+        ti: F_OR_Q_OR_ARR,
+        temp_eqm: F_OR_Q_OR_ARR,
+        rot_omega: F_OR_Q_OR_ARR = None,
+        rot_period: F_OR_Q_OR_ARR = None,
+        emissivity: F_OR_Q_OR_ARR = 0.9
+) -> u.Quantity:
     """ Convenience function of ``solve_Theta``.
     """
     if _count_not_None(rot_omega, rot_period) != 1:
@@ -627,7 +711,11 @@ def Thetapar(ti, temp_eqm, rot_omega=None, rot_period=None, emissivity=0.9) -> u
     return ps["thermal_par"]
 
 
-def rm2rho(radius, mass, return_quantity=True) -> u.Quantity:
+def rm2rho(
+        radius: F_OR_Q_OR_ARR,
+        mass: F_OR_Q_OR_ARR,
+        return_quantity: bool = True
+) -> u.Quantity:
     """ Convenience function of ``solve_rmrho``.
     """
     return solve_rmrho(radius=radius,
@@ -636,7 +724,11 @@ def rm2rho(radius, mass, return_quantity=True) -> u.Quantity:
                        return_quantity=return_quantity)["mass_den"]
 
 
-def rrho2m(radius, mass_den, return_quantity=True) -> u.Quantity:
+def rrho2m(
+        radius: F_OR_Q_OR_ARR,
+        mass_den: F_OR_Q_OR_ARR,
+        return_quantity: bool = True
+) -> u.Quantity:
     """ Convenience function of ``solve_rmrho``.
     """
     return solve_rmrho(radius=radius,
@@ -645,7 +737,11 @@ def rrho2m(radius, mass_den, return_quantity=True) -> u.Quantity:
                        return_quantity=return_quantity)["mass"]
 
 
-def mrho2r(mass, mass_den, return_quantity=True) -> u.Quantity:
+def mrho2r(
+        mass: F_OR_Q_OR_ARR,
+        mass_den: F_OR_Q_OR_ARR,
+        return_quantity: bool = True
+) -> u.Quantity:
     """ Convenience function of ``solve_rmrho``.
     """
     return solve_rmrho(radius=None,
@@ -654,7 +750,10 @@ def mrho2r(mass, mass_den, return_quantity=True) -> u.Quantity:
                        return_quantity=return_quantity)["radius"]
 
 
-def p2w(rot_period, return_quantity=True) -> u.Quantity:
+def p2w(
+        rot_period: F_OR_Q_OR_ARR,
+        return_quantity: bool = True
+) -> u.Quantity:
     """ Convenience function of ``solve_pw``.
     """
     return solve_pw(rot_period=rot_period,
@@ -662,7 +761,10 @@ def p2w(rot_period, return_quantity=True) -> u.Quantity:
                     return_quantity=return_quantity)["rot_omega"]
 
 
-def w2p(rot_omega, return_quantity=True) -> u.Quantity:
+def w2p(
+        rot_omega: F_OR_Q_OR_ARR,
+        return_quantity: bool = True
+) -> u.Quantity:
     """ Convenience function of ``solve_pw``.
     """
     return solve_pw(rot_period=None,
