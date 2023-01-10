@@ -96,13 +96,19 @@ def change_to_quantity(
     return ux
 
 
-def add_hdr(header, key: str, val, desired_unit='', comment=None):
+def add_hdr(
+        header,
+        key: str,
+        val: Any,
+        desired_unit: str | u.Unit = '',
+        comment: str = None
+):
     _val = change_to_quantity(val, desired=desired_unit, to_value=True)
     header[key] = (_val, comment)
     return header
 
 
-def parse_obj(objfile):
+def parse_obj(objfile: str):
     """ Parses the .obj file.
 
     Parameters
@@ -212,8 +218,10 @@ def sph2cart(theta: F_OR_Q, phi: F_OR_Q, degree: bool = True, r: F_OR_Q = 1) -> 
     return a
 
 
-def cart2sph(x: F_OR_Q, y: F_OR_Q, z: F_OR_Q, from_0: bool = True,
-             degree: bool = True, to_lonlat: bool = False) -> np.ndarray:
+def cart2sph(
+        x: F_OR_Q, y: F_OR_Q, z: F_OR_Q,
+        from_0: bool = True, degree: bool = True, to_lonlat: bool = False
+) -> np.ndarray:
     """ Converts the Cartesian coordinate to lon/lat coordinate
     Parameters
     ----------
@@ -412,8 +420,11 @@ def M_bf2ss(colat: F_OR_Q_OR_ARR) -> np.ndarray:
     return m
 
 
-def calc_mu_vals(r_vec: np.ndarray, spin_vec: np.ndarray, phases: F_OR_Q_OR_ARR,
-                 colats: F_OR_Q_OR_ARR, full: bool = False) -> np.ndarray:
+def calc_mu_vals(
+        r_vec: np.ndarray, spin_vec: np.ndarray,
+        phases: F_OR_Q_OR_ARR, colats: F_OR_Q_OR_ARR,
+        full: bool = False
+) -> np.ndarray:
     """ The conversion matrix to convert body-fixed frame to surface system.
 
     Parameters
