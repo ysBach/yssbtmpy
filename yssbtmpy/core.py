@@ -518,6 +518,10 @@ class SmallBody():
         """
         self.min_iter = min_iter
         self.max_iter = max_iter
+        if self.max_iter < self.min_iter:
+            raise ValueError("max_iter must be >= min_iter "
+                             + "(Now they are {self.max_iter} and {self.min_iter}.")
+
         if verbose and self.thermal_par < 0.1:
             if self.nlon < 1000:
                 print(f"nlon ({self.nlon}) is too small for such thermal parameter "
