@@ -56,7 +56,7 @@ def _i_should_solve(pardict: dict) -> bool:
 #     return vals
 
 
-def rot_omega2h(radps: F_OR_ARR = None, degps: F_OR_ARR = None):
+def rot_omega2h(radps: F_OR_ARR = None, degps: F_OR_ARR = None) -> F_OR_ARR:
     if _count_not_None(radps, degps) != 1:
         raise ValueError("One and only one of [radps, degps] must be given.")
 
@@ -67,7 +67,7 @@ def rot_omega2h(radps: F_OR_ARR = None, degps: F_OR_ARR = None):
         return 360/(degps*3600)
 
 
-def h2rot_omega(hour: F_OR_ARR):
+def h2rot_omega(hour: F_OR_ARR) -> F_OR_ARR:
     return 2*PI/(hour*3600)
 
 
@@ -553,7 +553,7 @@ def G2q(
         slope_par: F_OR_Q_OR_ARR = 0.15,
         classical: bool = False,
         return_quantity: bool = True
-) -> u.Quantity:
+) -> float | u.Quantity:
     """ Convenience function of ``solve_qG``.
     """
     return solve_Gq(slope_par=slope_par,
@@ -566,7 +566,7 @@ def q2G(
         phase_int: F_OR_Q_OR_ARR = 0.35,
         classical: bool = False,
         return_quantity: bool = True
-) -> u.Quantity:
+) -> float | u.Quantity:
     """ Convenience function of ``solve_qG``.
     """
     return solve_Gq(slope_par=None,
@@ -580,7 +580,7 @@ def pG2A(
         slope_par: F_OR_Q_OR_ARR = 0.15,
         classical: bool = False,
         return_quantity: bool = True
-) -> u.Quantity:
+) -> float | u.Quantity:
     """ Convenience function of ``solve_pAG``.
     """
     return solve_pAG(p_vis=p_vis,
@@ -595,7 +595,7 @@ def pA2G(
         a_bond=0.1,
         classical: bool = False,
         return_quantity: bool = True
-) -> u.Quantity:
+) -> float | u.Quantity:
     """ Convenience function of ``solve_pAG``.
     """
     return solve_pAG(p_vis=p_vis,
@@ -610,7 +610,7 @@ def AG2p(
         slope_par: F_OR_Q_OR_ARR = 0.15,
         classical: bool = False,
         return_quantity: bool = True
-) -> u.Quantity:
+) -> float | u.Quantity:
     """ Convenience function of ``solve_pAG``.
     """
     return solve_pAG(p_vis=None,
@@ -625,7 +625,7 @@ def pD2H(
         diam_eff: F_OR_Q_OR_ARR = 1,
         d0: F_OR_Q_OR_ARR = 1329,
         return_quantity: bool = True
-) -> u.Quantity:
+) -> float | u.Quantity:
     """ Convenience function of ``solve_pDH``.
     """
     return solve_pDH(p_vis=p_vis,
@@ -640,7 +640,7 @@ def pH2D(
         hmag_vis: F_OR_Q_OR_ARR,
         d0=1329,
         return_quantity: bool = True
-) -> u.Quantity:
+) -> float | u.Quantity:
     """ Convenience function of ``solve_pDH``.
     """
     return solve_pDH(p_vis=p_vis,
@@ -655,7 +655,7 @@ def DH2p(
         hmag_vis: F_OR_Q_OR_ARR,
         d0: F_OR_Q_OR_ARR = 1329,
         return_quantity: bool = True
-) -> u.Quantity:
+) -> float | u.Quantity:
     """ Convenience function of ``solve_pDH``.
     """
     return solve_pDH(p_vis=None,
@@ -671,7 +671,7 @@ def T_eqm(
         r_hel: F_OR_Q_OR_ARR = 1.0,
         emissivity: F_OR_Q_OR_ARR = 0.9,
         return_quantity: bool = True
-) -> u.Quantity:
+) -> float | u.Quantity:
     """ Convenience function of ``solve_Teqm``.
     """
     return solve_temp_eqm(a_bond=a_bond,
@@ -687,7 +687,7 @@ def Thetapar(
         rot_omega: F_OR_Q_OR_ARR = None,
         rot_period: F_OR_Q_OR_ARR = None,
         emissivity: F_OR_Q_OR_ARR = 0.9
-) -> u.Quantity:
+) -> float | u.Quantity:
     """ Convenience function of ``solve_Theta``.
     """
     if _count_not_None(rot_omega, rot_period) != 1:
@@ -715,7 +715,7 @@ def rm2rho(
         radius: F_OR_Q_OR_ARR,
         mass: F_OR_Q_OR_ARR,
         return_quantity: bool = True
-) -> u.Quantity:
+) -> float | u.Quantity:
     """ Convenience function of ``solve_rmrho``.
     """
     return solve_rmrho(radius=radius,
@@ -728,7 +728,7 @@ def rrho2m(
         radius: F_OR_Q_OR_ARR,
         mass_den: F_OR_Q_OR_ARR,
         return_quantity: bool = True
-) -> u.Quantity:
+) -> float | u.Quantity:
     """ Convenience function of ``solve_rmrho``.
     """
     return solve_rmrho(radius=radius,
@@ -741,7 +741,7 @@ def mrho2r(
         mass: F_OR_Q_OR_ARR,
         mass_den: F_OR_Q_OR_ARR,
         return_quantity: bool = True
-) -> u.Quantity:
+) -> float | u.Quantity:
     """ Convenience function of ``solve_rmrho``.
     """
     return solve_rmrho(radius=None,
@@ -753,7 +753,7 @@ def mrho2r(
 def p2w(
         rot_period: F_OR_Q_OR_ARR,
         return_quantity: bool = True
-) -> u.Quantity:
+) -> float | u.Quantity:
     """ Convenience function of ``solve_pw``.
     """
     return solve_pw(rot_period=rot_period,
@@ -764,7 +764,7 @@ def p2w(
 def w2p(
         rot_omega: F_OR_Q_OR_ARR,
         return_quantity: bool = True
-) -> u.Quantity:
+) -> float | u.Quantity:
     """ Convenience function of ``solve_pw``.
     """
     return solve_pw(rot_period=None,
