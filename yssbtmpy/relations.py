@@ -669,7 +669,7 @@ def T_eqm(
         a_bond: F_OR_Q_OR_ARR,
         eta_beam: F_OR_Q_OR_ARR = 1.0,
         r_hel: F_OR_Q_OR_ARR = 1.0,
-        emissivity: F_OR_Q_OR_ARR = 0.9,
+        emissivity: F_OR_Q_OR_ARR = 1.,
         return_quantity: bool = True
 ) -> float | u.Quantity:
     """ Convenience function of ``solve_Teqm``.
@@ -686,7 +686,7 @@ def Thetapar(
         temp_eqm: F_OR_Q_OR_ARR,
         rot_omega: F_OR_Q_OR_ARR = None,
         rot_period: F_OR_Q_OR_ARR = None,
-        emissivity: F_OR_Q_OR_ARR = 0.9
+        emissivity: F_OR_Q_OR_ARR = 1.
 ) -> float | u.Quantity:
     """ Convenience function of ``solve_Theta``.
     """
