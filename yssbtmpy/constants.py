@@ -1,7 +1,8 @@
 import numpy as np
 from astropy import units as u
 
-__all__ = ["PI", "D2R", "R2D", "AU", "MICRON", "TIU", "NOUNIT",
+__all__ = ["PI", "D2R", "R2D", "AU", "MICRON", "TIU", "HCU", "MDU", "TCU",
+           "NOUNIT",
            "GG"      , "GG_U"    , "GG_Q"     ,
            "HH"      , "HH_U"    , "HH_Q"     ,
            "KB"      , "KB_U"    , "KB_Q"     ,
@@ -20,6 +21,9 @@ R2D = 180/PI
 AU = 149597870700.0       # [m] 1 au in SI
 MICRON = 1.e-6            # [m] 1 um in SI
 TIU = u.def_unit("tiu", u.J/u.K/u.m**2/u.s**0.5)  # thermal inertia unit
+TCU = u.def_unit("tcu", u.W/u.m/u.K)  # thermal conductivity unit
+MDU = u.def_unit("mdu", u.kg/u.m**3)  # mass density unit
+HCU = u.def_unit("hcu", u.J/u.kg/u.K)  # specific heat capacity unit
 NOUNIT = u.dimensionless_unscaled
 
 # [m^3/kg/s^2] Gravitational constant
