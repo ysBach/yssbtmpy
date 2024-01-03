@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Union, Any, List
 
 import numba as nb
@@ -11,7 +12,8 @@ from .constants import CC, D2R, HH, KB, PI, R2D
 
 __all__ = [
     "F_OR_Q", "F_OR_ARR", "F_OR_Q_OR_ARR",
-    "convrt_quant", "change_to_quantity", "add_hdr", "parse_obj",
+    # "convrt_quant",
+    "change_to_quantity", "add_hdr", "parse_obj",
     "lonlat2cart", "sph2cart", "cart2sph",
     "calc_aspect_ang",
     "M_ec2fs", "M_bf2ss",
@@ -36,16 +38,7 @@ F_OR_Q_OR_ARR = Union[u.Quantity, float, np.ndarray]
 #     fluxlambda*wlen
 
 
-def _copy(xx):
-    try:
-        xcopy = xx.copy()
-    except AttributeError:
-        import copy
-        xcopy = copy.deepcopy(xx)
-    return xcopy
-
-
-def convrt_quant(
+def change_to_quantity(
     x: F_OR_Q_OR_ARR,
     desired: str | u.Unit = u.dimensionless_unscaled,
     to_value: bool = False
@@ -78,15 +71,11 @@ def convrt_quant(
     is. If not Quantity, multiply the ``desired``. ``desired = None``, return
     ``x`` with dimensionless unscaled unit.
     """
-    if to_value and (isinstance(x, (int, float))
-                     or (not desired)  # True if desired = None or ''
-                     or desired == u.dimensionless_unscaled):
-        return x
+    if isinstance(x, (int, float)):
+        return x*1 if to_value else x*u.Unit(desired)
 
     try:
-        if to_value:
-            return Quantity(x, desired).value
-        return Quantity(x, desired)
+        return Quantity(x, desired).value if to_value else Quantity(x, desired)
     except AttributeError:
         if not to_value:
             if isinstance(desired, str):
@@ -94,82 +83,81 @@ def convrt_quant(
             try:
                 ux = x*desired
             except TypeError:
-                ux = _copy(x)
+                ux = deepcopy(x)
         else:
-            ux = _copy(x)
+            ux = deepcopy(x)
     except TypeError:
-        ux = _copy(x)
+        ux = deepcopy(x)
     except u.UnitConversionError:
         raise ValueError(
             "If you use astropy.Quantity, you should use unit convertible to `desired`. \n"
-            + f'Now it is in "{x.unit}", unconvertible with "{desired}".'
+            + f'Now it is in "{x.unit}", unconvertible with "{desired}": {x}.'
         )
 
     return ux
 
 
-# Superceded by `convrt_quant`
-def change_to_quantity(
-    x: F_OR_Q_OR_ARR,
-    desired: str | u.Unit = '',
-    to_value: bool = False
-) -> F_OR_Q_OR_ARR:
-    """ Change the non-Quantity object to astropy Quantity.
+# def change_to_quantity(
+#     x: F_OR_Q_OR_ARR,
+#     desired: str | u.Unit = '',
+#     to_value: bool = False
+# ) -> F_OR_Q_OR_ARR:
+#     """ Change the non-Quantity object to astropy Quantity.
 
-    Parameters
-    ----------
-    x : object changable to astropy Quantity
-        The input to be changed to a Quantity. If a Quantity is given, ``x`` is
-        changed to the ``desired``, i.e., ``x.to(desired)``.
+#     Parameters
+#     ----------
+#     x : object changable to astropy Quantity
+#         The input to be changed to a Quantity. If a Quantity is given, ``x`` is
+#         changed to the ``desired``, i.e., ``x.to(desired)``.
 
-    desired : str or astropy Unit
-        The desired unit for ``x``.
+#     desired : str or astropy Unit
+#         The desired unit for ``x``.
 
-    to_value : bool, optional.
-        Whether to return as scalar value. If `True`, just the value(s) of the
-        ``desired`` unit will be returned after conversion.
+#     to_value : bool, optional.
+#         Whether to return as scalar value. If `True`, just the value(s) of the
+#         ``desired`` unit will be returned after conversion.
 
-    Return
-    ------
-    ux: Quantity
+#     Return
+#     ------
+#     ux: Quantity
 
-    Notes
-    -----
-    If Quantity, transform to ``desired``. If ``desired = None``, return it as
-    is. If not Quantity, multiply the ``desired``. ``desired = None``, return
-    ``x`` with dimensionless unscaled unit.
-    """
-    def _copy(xx):
-        try:
-            xcopy = xx.copy()
-        except AttributeError:
-            import copy
-            xcopy = copy.deepcopy(xx)
-        return xcopy
+#     Notes
+#     -----
+#     If Quantity, transform to ``desired``. If ``desired = None``, return it as
+#     is. If not Quantity, multiply the ``desired``. ``desired = None``, return
+#     ``x`` with dimensionless unscaled unit.
+#     """
+#     def _copy(xx):
+#         try:
+#             xcopy = xx.copy()
+#         except AttributeError:
+#             import copy
+#             xcopy = copy.deepcopy(xx)
+#         return xcopy
 
-    try:
-        ux = x.to(desired)
-        if to_value:
-            ux = ux.value
-    except AttributeError:
-        if not to_value:
-            if isinstance(desired, str):
-                desired = u.Unit(desired)
-            try:
-                ux = x*desired
-            except TypeError:
-                ux = _copy(x)
-        else:
-            ux = _copy(x)
-    except TypeError:
-        ux = _copy(x)
-    except u.UnitConversionError:
-        raise ValueError(
-            "If you use astropy.Quantity, you should use unit convertible to `desired`. \n"
-            + f'Now it is in "{x.unit}", unconvertible with "{desired}".'
-        )
+#     try:
+#         ux = x.to(desired)
+#         if to_value:
+#             ux = ux.value
+#     except AttributeError:
+#         if not to_value:
+#             if isinstance(desired, str):
+#                 desired = u.Unit(desired)
+#             try:
+#                 ux = x*desired
+#             except TypeError:
+#                 ux = _copy(x)
+#         else:
+#             ux = _copy(x)
+#     except TypeError:
+#         ux = _copy(x)
+#     except u.UnitConversionError:
+#         raise ValueError(
+#             "If you use astropy.Quantity, you should use unit convertible to `desired`. \n"
+#             + f'Now it is in "{x.unit}", unconvertible with "{desired}".'
+#         )
 
-    return ux
+#     return ux
 
 
 def add_hdr(
@@ -341,7 +329,7 @@ def calc_aspect_ang(
         r_obs_vec: np.ndarray = None,
         phase_ang: F_OR_Q = None,
 ) -> List[np.ndarray]:
-    """ Calculate the aspect angles (sun & observer) and delta-longitude.
+    """Calculate the aspect angles (sun & observer) and delta-longitude.
 
     Parameters
     ----------
@@ -379,7 +367,10 @@ def calc_aspect_ang(
     Notes
     -----
     Using the sign(alpha) convention from DelboM 2004 PhDT p.144,
+
+    .. math::
       sign([(-r_obs) x (-r_sun)] \cdot spin) = sign(alpha) = sign(dphi)
+
     where dphi is the longitude difference between sub-solar and sub-observer
     points. In words, alpha and dphi are positive if we are looking at the
     morning side. In the calculation, `phase_ang`(alpha) is used only for the
