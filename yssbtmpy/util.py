@@ -2,19 +2,22 @@ from typing import Union, Any, List
 
 import numba as nb
 import numpy as np
+from scipy.linalg import inv
 from astropy import units as u
+from astropy.units import Quantity
 from numba import njit
 
 from .constants import CC, D2R, HH, KB, PI, R2D
 
 __all__ = [
     "F_OR_Q", "F_OR_ARR", "F_OR_Q_OR_ARR",
-    "change_to_quantity", "add_hdr", "parse_obj",
+    "convrt_quant", "change_to_quantity", "add_hdr", "parse_obj",
     "lonlat2cart", "sph2cart", "cart2sph",
     "calc_aspect_ang",
     "M_ec2fs", "M_bf2ss",
     "calc_mu_vals",
-    "newton_iter_tpm", "calc_uarr_tpm"
+    "newton_iter_tpm", "calc_uarr_tpm",
+    "calc_varr_orbit"
 ]
 
 
@@ -33,6 +36,79 @@ F_OR_Q_OR_ARR = Union[u.Quantity, float, np.ndarray]
 #     fluxlambda*wlen
 
 
+def _copy(xx):
+    try:
+        xcopy = xx.copy()
+    except AttributeError:
+        import copy
+        xcopy = copy.deepcopy(xx)
+    return xcopy
+
+
+def convrt_quant(
+    x: F_OR_Q_OR_ARR,
+    desired: str | u.Unit = u.dimensionless_unscaled,
+    to_value: bool = False
+) -> F_OR_Q_OR_ARR:
+    """ Treat quantity-like objects
+
+    Parameters
+    ----------
+    x : float, quantity, array
+        The input to be converted or changed to a Quantity, etc. If a Quantity
+        is given, `x` is changed to the `desired`, i.e., ``x.to(desired)``.
+
+    desired : str or astropy Unit
+        The desired unit for `x`. `None` or ``''`` are identical to give
+        ``u.dimensionless_unscaled``.
+        Default is ``u.dimensionless_unscaled``.
+
+    to_value : bool, optional.
+        Whether to return as scalar value. If `True`, just the value(s) of the
+        ``desired`` unit will be returned after conversion.
+        Default is `False`.
+
+    Return
+    ------
+    ux: Quantity
+
+    Notes
+    -----
+    If Quantity, transform to ``desired``. If ``desired = None``, return it as
+    is. If not Quantity, multiply the ``desired``. ``desired = None``, return
+    ``x`` with dimensionless unscaled unit.
+    """
+    if to_value and (isinstance(x, (int, float))
+                     or (not desired)  # True if desired = None or ''
+                     or desired == u.dimensionless_unscaled):
+        return x
+
+    try:
+        if to_value:
+            return Quantity(x, desired).value
+        return Quantity(x, desired)
+    except AttributeError:
+        if not to_value:
+            if isinstance(desired, str):
+                desired = u.Unit(desired)
+            try:
+                ux = x*desired
+            except TypeError:
+                ux = _copy(x)
+        else:
+            ux = _copy(x)
+    except TypeError:
+        ux = _copy(x)
+    except u.UnitConversionError:
+        raise ValueError(
+            "If you use astropy.Quantity, you should use unit convertible to `desired`. \n"
+            + f'Now it is in "{x.unit}", unconvertible with "{desired}".'
+        )
+
+    return ux
+
+
+# Superceded by `convrt_quant`
 def change_to_quantity(
     x: F_OR_Q_OR_ARR,
     desired: str | u.Unit = '',
@@ -260,22 +336,45 @@ def cart2sph(
 
 
 def calc_aspect_ang(
-        r_hel_vec: np.ndarray,
-        r_obs_vec: np.ndarray,
         spin_vec: np.ndarray,
-        phase_ang: F_OR_Q,
+        r_hel_vec: np.ndarray,
+        r_obs_vec: np.ndarray = None,
+        phase_ang: F_OR_Q = None,
 ) -> List[np.ndarray]:
     """ Calculate the aspect angles (sun & observer) and delta-longitude.
 
     Parameters
     ----------
-    r_hel_vec, r_obs_vec, spin_vec : 1-d array
-        The heliocentric and observer-centric vectors to the body, and the spin
-        vector, all in the ecliptic coordinate.
+    spin_vec : 1-d array
+        The spin vector in the ecliptic coordinate xyz (s.t. norm = 1.0).
 
-    phase_ang : float or ~astropy.Quantity
+    r_hel_vec : 1-d array
+        The heliocentric vector to the body in the ecliptic coordinate.
+        Actually, if one wants to quickly calculate the aspect angle for the
+        observer, you can give an array of r_obs_vec here and leave others
+        `None`.
+
+    r_obs_vec : 1-d array, optional
+        The observer-centric vector to the body in the ecliptic coordinate.
+
+    phase_ang : float or ~astropy.Quantity, optional.
         The phase angle of the body. It does not necessarily have the sign (see
-        Notes).
+        Notes). Used for calculating delta-longitude of the sub-Solar and
+        sub-observer's points, so it is used only if `r_obs_vec` is given.
+
+    Return
+    ------
+    aspect_ang : float or ~astropy.Quantity
+        The aspect angle between the spin vector and the heliocentric vector.
+
+    aspect_ang_obs : float or ~astropy.Quantity
+        The aspect angle between the spin vector and the observer-centric
+        vector. Only returned if `r_obs_vec` is given.
+
+    dlon_sol_obs : float or ~astropy.Quantity
+        The delta-longitude between the sub-Solar and sub-observer's points.
+        Only returned if `r_obs_vec` and `phase_ang` are given.
+
 
     Notes
     -----
@@ -287,11 +386,8 @@ def calc_aspect_ang(
     calculation of dphi. The sign of alpha is determined within the code and
     used as `sign*np.abs(phase_ang)`.
     """
+    # default aspect angle
     r_hel_hat = r_hel_vec/np.linalg.norm(r_hel_vec)
-    r_obs_hat = r_obs_vec/np.linalg.norm(r_obs_vec)
-    # r_obs_hat = lonlat2cart(obs_ecl_helio.lon,
-    #                         obs_ecl_helio.lat)
-
     aspect_ang = change_to_quantity(
         np.rad2deg(np.arccos(np.inner(-1*r_hel_hat, spin_vec))),
         u.deg,
@@ -299,6 +395,13 @@ def calc_aspect_ang(
     )
     # aux_cos_sun = np.inner(r_hel_hat, self.spin_vec)
     # self.aspect_ang = (180-np.rad2deg(np.arccos(aux_cos_sun)))*u.deg
+
+    if r_obs_vec is None or None in r_obs_vec:  # Return here
+        return aspect_ang, None, None
+
+    r_obs_hat = r_obs_vec/np.linalg.norm(r_obs_vec)
+    # r_obs_hat = lonlat2cart(obs_ecl_helio.lon,
+    #                         obs_ecl_helio.lat)
     aspect_ang_obs = change_to_quantity(
         np.rad2deg(np.arccos(np.inner(-1*r_obs_hat, spin_vec))),
         u.deg,
@@ -307,6 +410,10 @@ def calc_aspect_ang(
     # aux_cos_obs = np.inner(r_obs_hat, self.spin_vec)
     # aspect_ang_obs = (180-np.rad2deg(np.arccos(aux_cos_obs)))*u.deg
 
+    if phase_ang is None:  # Return here
+        return aspect_ang, aspect_ang_obs, None
+
+    # == If phase_ang is given, proceed delta-longitude calculation:
     sign = np.sign(np.inner(np.cross(r_obs_hat, r_hel_hat), spin_vec))
 
     # cos(dphi) = [(cos(asp_sun)cos(asp_obs) - cos(alpha))
@@ -348,6 +455,17 @@ def M_ec2fs(r_vec: np.ndarray, spin_vec: np.ndarray) -> np.ndarray:
     If ``a`` is a vector in ecliptic coordinate (in Cartesian (x, y, z)), ``m @
     a`` will give the components of vector ``a`` in frame system, where ``m``
     is the result of this function.
+
+    I found scipy inversion is faster than numpy inversion:
+    import numpy as np
+    import scipy.linalg as sl
+    %timeit np.linalg.inv(m1)
+    %timeit sl.inv(m1)
+    %timeit sl.inv(m1, overwrite_a=True, check_finite=False)
+
+    # 19 µs +- 34.9 ns per loop (mean +- std. dev. of 7 runs, 100,000 loops each)
+    # 4.5 µs +- 28.8 ns per loop (mean +- std. dev. of 7 runs, 100,000 loops each)
+    # 3.1 µs +- 11 ns per loop (mean +- std. dev. of 7 runs, 100,000 loops each)
     """
     # Z_fs_ec = spin_vec.copy()
     Y_fs_ec = np.cross(spin_vec, -r_vec)
@@ -359,9 +477,9 @@ def M_ec2fs(r_vec: np.ndarray, spin_vec: np.ndarray) -> np.ndarray:
     Y_fs_ec = Y_fs_ec / np.linalg.norm(Y_fs_ec)
     Z_fs_ec = spin_vec / np.linalg.norm(spin_vec)
 
-    m1 = np.vstack([X_fs_ec, Y_fs_ec, Z_fs_ec]).T
-    m = np.linalg.inv(m1)
-    return m
+    m1 = np.vstack((X_fs_ec, Y_fs_ec, Z_fs_ec)).T
+    # m = np.linalg.inv(m1)
+    return inv(m1, overwrite_a=True, check_finite=False)
 
 
 def M_fs2bf(phase: F_OR_ARR) -> np.ndarray:
@@ -416,7 +534,7 @@ def M_bf2ss(colat: F_OR_Q_OR_ARR) -> np.ndarray:
 
     c = np.cos(colat__deg * D2R)
     s = np.sin(colat__deg * D2R)
-    m = np.array([[0, 1, 0], [-c, 0, s], [s, 0, c]])
+    m = np.array(((0., 1., 0.), (-c, 0., s), (s, 0., c)))
     return m
 
 
@@ -451,18 +569,18 @@ def calc_mu_vals(
         The direction to the Sun (``(x, y, z)`` along ``axis=2``).
         Returned only if ``full=True``.
 
-    M1 : ndarray
+    mat_ec2fs : ndarray
         The conversion matrix to convert ecliptic to frame system, i.e., the
         result of ``M_ec2fs(r_vec=r_vec, spin_vec=spin_vec)``.
         Returned only if ``full=True``.
 
-    M2arr : ndarray
+    mat_fs2bf_arr : ndarray
         The conversion matrix to convert frame system to body-fixed frame,
         i.e., the result of ``M_fs2bf(phase=phase)`` for all ``phase in
         phases``.
         Returned only if ``full=True``.
 
-    M3arr : ndarray
+    mat_bf2ss_arr : ndarray
         The conversion matrix to convert body-fixed frame to surface system,
         i.e., the result of ``M_bf2ss(colat__deg=colat)`` for all ``colat in
         colats``..
@@ -477,35 +595,285 @@ def calc_mu_vals(
     """
     colats__deg = change_to_quantity(colats, u.deg, to_value=True)
     phases__rad = change_to_quantity(phases, u.rad, to_value=True)
+    r_vec_norm = r_vec/np.linalg.norm(r_vec)
+    spin_vec_norm = spin_vec/np.linalg.norm(spin_vec)
 
-    M2arr = []
-    M3arr = []
+    mat_fs2bf_arr = []
+    mat_bf2ss_arr = []
     dirs = []
     mu_vals = []
-    M1 = M_ec2fs(r_vec=r_vec, spin_vec=spin_vec)
+    mat_ec2fs = M_ec2fs_nb(r_vec_norm=r_vec_norm, spin_vec_norm=spin_vec_norm)
 
     for phase in phases__rad:
-        M2arr.append(M_fs2bf(phase=phase))
+        mat_fs2bf_arr.append(M_fs2bf(phase=phase))
 
     for colat in colats__deg:
-        M3arr.append(M_bf2ss(colat=colat))
+        mat_bf2ss_arr.append(M_bf2ss(colat=colat))
 
-    M2arr = np.array(M2arr)
-    M3arr = np.array(M3arr)
-    for M3 in M3arr:
-        dirs.append(M3 @ M2arr @ M1 @ -(r_vec/np.linalg.norm(r_vec)))
+    mat_fs2bf_arr = np.array(mat_fs2bf_arr)
+    mat_bf2ss_arr = np.array(mat_bf2ss_arr)
+    for mat_bf2ss in mat_bf2ss_arr:
+        dirs.append(mat_bf2ss @ mat_fs2bf_arr @ mat_ec2fs @ -(r_vec_norm))
     solar_dirs = np.array(dirs)
     # Z component = cos i_sun for mu_sun case.
     mu_vals = solar_dirs.copy()[:, :, 2]
     mu_vals[mu_vals < 0] = 0
 
     if full:
-        return mu_vals, solar_dirs, M1, M2arr, M3arr
+        return mu_vals, solar_dirs, mat_ec2fs, mat_fs2bf_arr, mat_bf2ss_arr
     return mu_vals
 
 
-@njit()
-def newton_iter_tpm(newu0_init, newu1, thpar, dZ, mu_sun, Nmax=5000, atol=1.e-8):
+@njit(cache=True)
+def M_bf2ss_nb(colat__deg: float) -> np.ndarray:
+    """ The conversion matrix to convert body-fixed frame to surface system.
+
+    See M_bf2ss for the docstring.
+    """
+    c = np.cos(colat__deg * np.pi/180)
+    s = np.sin(colat__deg * np.pi/180)
+    m = np.array(((0., 1., 0.), (-c, 0., s), (s, 0., c)))
+    return m
+
+
+@njit(cache=True)
+def M_ec2fs_nb(r_vec_norm: np.ndarray, spin_vec_norm: np.ndarray) -> np.ndarray:
+    """ The conversion matrix to convert ecliptic to frame system.
+
+    see M_ec2fs for the docstring.
+    """
+    # Z_fs_ec = spin_vec.copy()
+    Y_fs_ec = np.cross(spin_vec_norm, -r_vec_norm)
+    X_fs_ec = np.cross(Y_fs_ec, spin_vec_norm)
+
+    m1 = np.vstack((
+        X_fs_ec/np.linalg.norm(X_fs_ec),
+        Y_fs_ec/np.linalg.norm(Y_fs_ec),
+        spin_vec_norm
+    )).T
+    return np.ascontiguousarray(np.linalg.inv(m1))
+
+
+@njit(cache=True)
+def M_fs2bf_nb(phase__rad: float) -> np.ndarray:
+    """ The conversion matrix to convert frame system to body-fixed frame.
+
+    See M_fs2bf for the docstring.
+    """
+    c = np.cos(phase__rad)
+    s = np.sin(phase__rad)
+    m = np.array(([-c, -s, 0], [s, -c, 0], [0, 0, 1]))
+    return m
+
+
+@njit
+def calc_mu_val_nb(
+    r_vec_norm: np.ndarray,
+    spin_vec_norm: np.ndarray,
+    phi__rad: float,
+    mat_bf2ss: np.ndarray,
+):
+    """ Calculates mu value
+    """
+    m1 = M_ec2fs_nb(r_vec_norm=r_vec_norm, spin_vec_norm=spin_vec_norm)
+    m2 = M_fs2bf_nb(phase__rad=phi__rad)
+    solar_dir = (mat_bf2ss @ m2 @ m1 @ -(r_vec_norm))
+    # Z component = cos i_sun for mu_sun case:
+    mu_val = solar_dir[2]
+    # if abs(mu_val) > 1:
+    #     print(r_hel_vec_norm, spin_vec_norm, m1, m2, solar_dir, mu_val)
+    return mu_val if mu_val > 0. else 0.
+
+
+# @njit
+# def eph_idx_arr(idarr: np.ndarray, eph_jds: np.ndarray, dt_1: float) -> None:
+#     # d_eph_jds = eph_jds - eph_jds[0]
+#     idx_of_eph_jds = 0
+#     idarr[0] = 0
+#     time_i = eph_jds[0]
+#     jd2compare = eph_jds[1]
+#     for i in range(1, idarr.size - 1):
+#         time_i += dt_1
+#         if time_i >= jd2compare:
+#             idx_of_eph_jds += 1
+#             jd2compare = eph_jds[idx_of_eph_jds]
+#         idarr[i] = idx_of_eph_jds
+
+
+@njit(parallel=True,)  # fastmath={"nnan", "ninf", "nsz"}
+def calc_varr_orbit(
+        varrs_init: np.ndarray,
+        phi0s: np.ndarray,
+        spin_vec_norm: np.ndarray,
+        mat_bf2ss: np.ndarray,
+        r_hel_vecs: np.ndarray,
+        r_hels: np.ndarray,
+        true_anoms__deg: np.ndarray,
+        psis__rad: np.ndarray,
+        thpar1: float,
+        deps: np.ndarray,
+        full: bool = False
+) -> np.ndarray:
+    """
+    rot_period__day : float
+        The rotation period of the asteroid (in days).
+    """
+    n_calc = r_hel_vecs.shape[0]  # must be == true_anoms__deg.size
+    n_location = phi0s.shape[0]
+    varrs_surf = np.zeros((n_location, n_calc))  # 1-D along time for n_location
+    varrs_new = varrs_init.copy()  # 1-D along depth at the last iteration
+    phi_last = np.empty(n_location)
+    # mu_last = np.empty(n_location)
+    mu_vals = np.empty((n_location, n_calc))
+
+    for iloc in nb.prange(n_location):
+        phi0 = phi0s[iloc]
+        mat = mat_bf2ss[iloc, :, :]
+        varr_old = varrs_init[iloc].copy()
+        varr_new = varrs_init[iloc].copy()
+        for i in range(n_calc - 1):
+            df__rad = (true_anoms__deg[i+1] - true_anoms__deg[i])*D2R
+            phi__rad = (phi0 + psis__rad[i+1] - df__rad)  # %(2*PI)
+            # I think %(2*PI) is unnecessary...?            ^^^^^^^
+            mu = calc_mu_val_nb(
+                r_vec_norm=r_hel_vecs[i, :]/r_hels[i],
+                spin_vec_norm=spin_vec_norm,
+                phi__rad=phi__rad,
+                mat_bf2ss=mat
+            )
+            # if np.isnan(mu) or mu > 1:
+            #     print("mu is strange.", iloc, i, mu, r_hel_vecs[i, :]/r_hels[i], spin_vec_norm, phi__rad, mat)
+            update_varr(
+                varr_old=varr_old,
+                varr_new=varr_new,
+                thpar=thpar1,
+                dlon__rad=psis__rad[i+1] - psis__rad[i],
+                deps=deps,
+                mu_sun=mu/r_hels[i]**2
+            )
+            varrs_surf[iloc, i] = varr_new[0]
+            mu_vals[iloc, i] = mu
+            varr_old = varr_new.copy()
+            # varr_new *= 0
+
+        varrs_new[iloc] = varr_new
+        phi_last[iloc] = phi__rad
+        # mu_last[iloc] = mu
+
+    return varrs_surf, varrs_new, phi_last, mu_vals
+
+
+# @njit(parallel=True, fastmath={"nnan", "ninf", "nsz"})
+# def calc_varr_orbit(
+#         varrs_init: np.ndarray,
+#         eph_jds: np.ndarray,
+#         r_hels__au: np.ndarray,
+#         r_hel_vecs__au: np.ndarray,
+#         spin_vec: np.ndarray,
+#         true_anoms__deg: np.ndarray, lons__deg: float, lats__deg: float,
+#         rot_period__day: float,
+#         n_per_rot: int,
+#         full: bool = False
+# ) -> np.ndarray:
+#     """
+#     rot_period__day : float
+#         The rotation period of the asteroid (in days).
+#     """
+
+    # npoints = lons__deg.size
+    # dt_1 = rot_period__day/n_per_rot
+    # # [day]
+    # fullsize = int((eph_jds.max() - eph_jds.min()) / dt_1) + 1
+    # eph_size = eph_jds.size
+    # # fullsize: the total number of calculations to be done
+    # muarrs = np.empty(shape=(npoints, fullsize))
+    # varrs_surf = np.empty(shape=(npoints, fullsize))
+
+    # for ipoint in nb.prange(npoints):
+    #     varr_old = np.zeros_like(varrs_init[ipoint]) + varrs_init[ipoint]
+    #     varr_new = np.zeros_like(varrs_init[ipoint]) + varrs_init[ipoint]
+    #     varrs_surf[ipoint, 0] = varr_old[0]
+    #     lon = lons__deg[ipoint]
+    #     lat = lats__deg[ipoint]
+    #     m3 = M_bf2ss_nb(colat__deg=90-lat)
+
+    #     idx_of_eph_jds = 0
+    #     time_i = eph_jds[0]
+    #     jd2compare = eph_jds[1]
+    #     r_hel = r_hels__au[0]
+    #     r_hel_vec = r_hel_vecs__au[0]
+    #     true_anom = true_anoms__deg[0]
+
+    #     for i in range(fullsize - 1):
+
+    #     while True:
+
+    #     for i_row in range(eph_size-1):
+    #         dt_2 = eph_jds[i_row+1] - eph_jds[i_row]
+
+    #         r_hel_vec0 = r_hel_vecs__au[i_row]
+    #         r_hel0 = r_hels__au[i_row]
+    #         # query time step
+    #         # change rate (linear interpolation)
+    #         dr_dt = (r_hel_vecs__au[i_row+1] - r_vec0)/dt_q
+    #         df_dt = (true_anoms__deg[i_row+1] - true_anoms__deg[i_row])/dt_q
+
+    #         i_time = 0
+    #         psi__rad = lon*D2R  # Initial value
+    #         phi0__rad = lon*D2R  # Initial value
+
+    #         while True:
+    #             if delta_t >= dt_q:
+    #                 break
+    #             delta_psi__rad = 2*PI*delta_t/rot_period__day
+    #             psi__rad = (psi__rad + delta_psi__rad)%(2*PI)
+    #             phi__rad = (phi0__rad + delta_psi__rad - df_dt*delta_t*D2R)%(2*PI)
+    #             r_vec = r_vec0 + dr_dt*delta_t
+    #             mu_val = calc_mu_val_nb(r_vec, spin_vec, phi__rad, m3)
+    #             muarrs[ipoint, i_row*n_per_rot + i_time] = mu_val
+    #             i_time += 1
+    # return muarrs
+
+
+@njit
+def update_varr(
+        varr_old: np.ndarray,
+        varr_new: np.ndarray,
+        thpar: float,
+        dlon__rad: float,
+        deps: np.ndarray,
+        mu_sun: float
+) -> None:
+    """Calculates the v value in usual TPM.
+    """
+    for i_z in range(1, deps.size - 1):
+        varr_new[i_z] = (
+            varr_old[i_z]
+            + dlon__rad/(deps[i_z+1] - deps[i_z])**2
+            * (varr_old[i_z - 1] + varr_old[i_z + 1] - 2*varr_old[i_z])
+        )
+    # Deepest cell
+    varr_new[-1] = varr_new[-2]
+    # Surface cell
+    varr_new[0] = newton_iter_tpm(
+        newu0_init=varr_old[0],
+        newu1=varr_new[1],
+        thpar=thpar,
+        dZ=deps[1] - deps[0],
+        mu_sun=mu_sun
+    )
+
+
+@njit(cache=True)
+def newton_iter_tpm(
+        newu0_init: float,
+        newu1: float,
+        thpar: float,
+        dZ: float,
+        mu_sun: float,
+        Nmax: int = 5000,
+        atol: float = 1.e-8
+) -> float:
     """ Root finding using Newton's method
 
     Parameters
@@ -551,20 +919,20 @@ def newton_iter_tpm(newu0_init, newu1, thpar, dZ, mu_sun, Nmax=5000, atol=1.e-8)
 
 
 # Tested on 15"MBP2018: speed is by ~10 times faster if parallel is used.
-@njit(parallel=True)
+@njit(parallel=True, cache=True)
 def calc_uarr_tpm(
-        u_arr,
-        thpar,
-        dlon,
-        dZ,
-        mu_suns,
-        min_iter=50,
-        max_iter=5000,
-        min_elevation_deg=0.,
-        permanent_shadow_u=0,
-        atol=1.e-8
+        u_arr: np.ndarray,
+        thpar: float,
+        dlon: float,
+        dZ: float,
+        mu_suns: np.ndarray,
+        min_iter: int = 50,
+        max_iter: int = 5000,
+        min_elevation_deg: float = 0.,
+        permanent_shadow_u: float = 0,
+        atol: float = 1.e-8
 ):
-    """
+    """Calculates the u value in usual TPM.
     Parameters
     ----------
     u_arr : 3d-array
@@ -625,6 +993,8 @@ def calc_uarr_tpm(
                 for i_t in range(ntime + 1):
                     for i_dep in range(ndepth):
                         u_arr[i_lat, i_t, i_dep] = permanent_shadow_u
+        else:
+            permanent_shadow = False
 
         if not permanent_shadow:
             discrep = 1.
@@ -690,3 +1060,8 @@ def calc_flux_tpm(fluxarr, wlen, tempsurf, mu_obss):
                 radiance = factor1 * 1/(np.exp(factor2/temp) - 1)
                 # print(i, j, np.exp(factor2/temp))
                 fluxarr[k] += radiance*mu_obs
+
+
+@njit(parallel=True)
+def calc_flux_vis(fluxarr, gpar, alpha):
+    pass
