@@ -9,10 +9,11 @@ from .util import F_OR_ARR, F_OR_Q, F_OR_Q_OR_ARR, change_to_quantity
 # TODO: maybe make it to accept terminal command lines.
 
 __all__ = ["rot_omega2h", "h2rot_omega",
-           "solve_Gq", "solve_pAG", "solve_pDH", "solve_temp_eqm",
+           "solve_phid", "solve_Gq", "solve_pAG", "solve_pDH", "solve_temp_eqm",
            "solve_thermal_par", "solve_rmrho", "solve_pw",
            "G2q", "q2G", "pG2A", "pA2G", "AG2p", "pD2H", "pH2D", "DH2p",
-           "T_eqm", "Thetapar", "rm2rho", "rrho2m", "mrho2r", "p2w", "w2p"]
+           "T_eqm", "Thetapar", "rm2rho", "rrho2m", "mrho2r", "p2w", "w2p",
+           "phi2d", "d2phi"]
 
 
 def _count_not_None(*args) -> int:
@@ -41,7 +42,8 @@ def _i_should_solve(pardict: dict) -> bool:
         return False
 
     elif N_not_None < N_pars - 1:
-        raise ValueError(f"At least {N_pars - 1} of parameters must be given.")
+        raise ValueError(
+            f"Only {N_not_None} out of {N_pars - 1} parameters are given:\n{pardict}")
 
     return True
 
@@ -69,6 +71,39 @@ def rot_omega2h(radps: F_OR_ARR = None, degps: F_OR_ARR = None) -> F_OR_ARR:
 
 def h2rot_omega(hour: F_OR_ARR) -> F_OR_ARR:
     return 2*PI/(hour*3600)
+
+
+def solve_phid(
+        phi: F_OR_ARR = None,
+        d: F_OR_ARR = None,
+        return_quantity: bool = True
+) -> F_OR_ARR:
+    """ Solves for Krumbien phi-scale grain size from micrometer
+    """
+    pdict = dict(phi=phi, d=d)
+    udict = dict(phi=NOUNIT, d=u.um)
+    to_value = (not return_quantity)
+
+    # 1. Check: (a) all are given or (b) more than one missing
+    solve = _i_should_solve(pardict=pdict)
+    if not solve:
+        return _setup_pars(pardict=pdict, unitdict=udict, to_value=to_value)
+
+    # 2. Convert all to plain float
+    ps = _setup_pars(pardict=pdict, unitdict=udict, to_value=True)
+    phi = ps["phi"]
+    d = ps["d"]
+
+    # 3. Solve
+    if phi is None:
+        ps["phi"] = -np.log2(d/1000)
+    elif d is None:
+        ps["d"] = 2**(-phi)*1000  # in um, not mm
+
+    # 4. Convert to astropy.Quantity if needed.
+    ps = _setup_pars(pardict=ps, unitdict=udict, to_value=to_value)
+
+    return ps
 
 
 def solve_Gq(
@@ -241,7 +276,7 @@ def solve_pDH(
         D = \frac{D_0}{\sqrt{p_\mathrm{V}}} \times 10^{-H_\mathrm{V}/5}
     is used. Here, :math:`D_0 = 2 \mathrm{au} \times 10^{-V_\odot/5}`, where
     :math:`V_\odot` is the apparent magnitude of the Sun in Johnson-Cousins
-    V-band filter (-26.74). The equation is derived such that the visual
+    V-band filter (-26.76). The equation is derived such that the visual
     magnitude of a circular Lambertian plate of diameter D and geometric albedo
     p_vis at perfect opposition to be the same as hmag_vis. This diameter is
     called the effective diameter. Shape-modelers sometimes confuse this
@@ -251,7 +286,7 @@ def solve_pDH(
     It is first used in Fowler and Chillemi (1992), IRAS Minor Planet Surv.,
     ed. E. F. Tedesco et al. (Phillips Laboratory Tech. Rep. No.PL-TR-92-2049),
     17. There it is defined that :math:`D_0 = 1329 \mathrm{km}`, while the
-    modern measurements would give 1343 km, but the uncertainty in solar
+    modern measurements would give 1330.3 km, but the uncertainty in solar
     magnitude will tune it by 0.1% level, thus 1329 km is still in the error
     range, and thus there is no much need to update the value "1329". But to
     leave a flexibility, I set d0 an input paremeter here.
@@ -770,3 +805,25 @@ def w2p(
     return solve_pw(rot_period=None,
                     rot_omega=rot_omega,
                     return_quantity=return_quantity)["rot_period"]
+
+
+def phi2d(
+        phi: F_OR_Q_OR_ARR,
+        return_quantity: bool = True
+) -> float | u.Quantity:
+    """ Convenience function of ``solve_pw``.
+    """
+    return solve_phid(phi=phi,
+                      d=None,
+                      return_quantity=return_quantity)["d"]
+
+
+def d2phi(
+        d: F_OR_Q_OR_ARR,
+        return_quantity: bool = True
+) -> float | u.Quantity:
+    """ Convenience function of ``solve_pw``.
+    """
+    return solve_phid(phi=None,
+                      d=d,
+                      return_quantity=return_quantity)["phi"]
