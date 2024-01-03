@@ -15,6 +15,27 @@ import numpy as np
 __all__ = ["Material", "solve_r_grain_ME22", "k_gb13", "k_solid_gb13", "k_rad_gb13"]
 
 
+def power_fun(x: F_OR_Q, coeffs: dict = None) -> F_OR_Q:
+    """ Similar to np.polyval, but includes arbitrary power.
+
+    Parameters
+    ----------
+    x : float
+        The value of the variable.
+
+    coeffs : dict
+        The coefficients of the dependence. The keys are the exponents of `x`
+        and the values are the coefficients. For example, for `a*x**2 + b*x +
+        c/x`, then `coeffs` should be `coeffs = {2: a, 1: b, -1: c}`.
+
+    unit : Unit
+        The unit of the result. Default is dimensionless.
+    """
+    if isinstance(x, Quantity):
+        x = x.value
+    return x if coeffs is None else sum([coeffs[exp]*x**exp for exp in coeffs])
+
+
 def _mat_pm(name, cen, sd, unit, coeffs=None, fun=True):
     """ Convenience function for Materials class
     """
@@ -429,27 +450,6 @@ def solve_r_grain_ME22(
         material.emissivity_fun = emissivity_fun
 
     return material, material.solve_r_grain(temp=temp, ti=ti, porosity=porosity)
-
-
-def power_fun(x: F_OR_Q, coeffs: dict = None) -> F_OR_Q:
-    """ Similar to np.polyval, but includes arbitrary power.
-
-    Parameters
-    ----------
-    x : float
-        The value of the variable.
-
-    coeffs : dict
-        The coefficients of the dependence. The keys are the exponents of `x`
-        and the values are the coefficients. For example, for `a*x**2 + b*x +
-        c/x`, then `coeffs` should be `coeffs = {2: a, 1: b, -1: c}`.
-
-    unit : Unit
-        The unit of the result. Default is dimensionless.
-    """
-    if isinstance(x, Quantity):
-        x = x.value
-    return x if coeffs is None else sum([coeffs[exp]*x**exp for exp in coeffs])
 
 
 def jkr_contact(
