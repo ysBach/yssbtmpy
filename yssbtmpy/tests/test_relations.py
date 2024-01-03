@@ -387,7 +387,7 @@ def test_DH2p_Qo():
     test_D = np.array(_test_D)
 
     for H, d0 in product(_test_H, _test_d0):
-        real_p = (test_D/d0)**2*10**(-2*H/5)
+        real_p = (d0/test_D)**2*10**(-2*H/5)
         calc_p1 = DH2p(test_D, H, d0=d0, **kwdict)
         calc_p2 = solve_pDH(None, test_D, H, d0=d0, **kwdict)["p_vis"]
         allclose_Q(calc_p1, real_p*NOUNIT)
@@ -407,7 +407,7 @@ def test_DH2p_Qx():
     test_D = np.array(_test_D)
 
     for H, d0 in product(_test_H, _test_d0):
-        real_p = (test_D/d0)**2*10**(-2*H/5)
+        real_p = (d0/test_D)**2*10**(-2*H/5)
         calc_p1 = DH2p(test_D, H, d0=d0, **kwdict)
         calc_p2 = solve_pDH(None, test_D, H, d0=d0, **kwdict)["p_vis"]
         allclose_Q(calc_p1, real_p)
