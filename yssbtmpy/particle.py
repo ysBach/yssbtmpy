@@ -7,6 +7,7 @@ longitude phi = 0 at midnight, 180˚ at midday.
 """
 import numpy as np
 from astropy import units as u
+import numba as nb
 
 from .constants import C_F_SUN, C_F_THER, D2R, GG, PI, T_SUN
 from .relations import solve_rmrho
@@ -15,10 +16,26 @@ from .util import cart2sph, change_to_quantity, sph2cart
 __all__ = ["MovingParticle"]
 
 
-# For easier handling of cart2sph, because input gets degrees of theta/phi and
-# phi should be 0 to 360...
-CART2SPH_KW = dict(from_0=True, degree=True, to_lonlat=False)
+# # For easier handling of cart2sph, because input gets degrees of theta/phi and
+# # phi should be 0 to 360...
+# CART2SPH_KW = dict(from_0=True, degree=True, to_lonlat=False)
 
+
+def leapfrog_kdk(posvel, dt, acc_func, acc_start=None):
+    """
+    To save time in acceleration calculation, if you give ``acc_start``, it
+    will use it as the acceleration of the starting point, which is the
+    accelration of the ending point of the last iteration.
+    """
+    pos, vel = posvel
+    if acc_start is not None:
+        vel_tmp = vel + dt/2*acc_start
+    else:
+        vel_tmp = vel + dt/2*acc_func(pos)
+
+    pos_new = pos + dt*vel_tmp
+    vel_new = vel_tmp + dt/2*acc_func(pos_new, append=True)
+    return pos_new, vel_new
 
 def sin_deg(x):
     return np.sin(x*D2R)
@@ -29,25 +46,6 @@ def cos_deg(x):
 
 
 class SmallBodyForceMixin:
-    @staticmethod
-    def _force_sun(r_um, r_hel_au, a_bond, height_par, mu_sun,
-                   val_Qprbar):
-        f_sun = C_F_SUN*(r_um/r_hel_au)**2*val_Qprbar
-        f_ref = a_bond*height_par*mu_sun*f_sun
-        return f_sun, f_ref
-
-    # TODO: Will it be faster if we have spline of temp^4 a priori?
-    @staticmethod
-    def _force_ther(r_um, temp, height_par, emissivity, val_Qprbar):
-        r"""
-        Constant emissivity for surface is assumed, i.e., :math: `\epsilon_S =
-        \bar{\epsilon_S}`.
-        """
-        eda2 = emissivity*height_par*(r_um)**2
-        f_ther = C_F_THER*val_Qprbar*eda2*temp**4
-
-        return f_ther
-
     # TODO: Maybe gala integrator can be used?
     # https://gala-astro.readthedocs.io/en/latest/integrate/
     # @staticmethod
@@ -107,6 +105,7 @@ class MovingParticle(SmallBodyForceMixin):
                                    0,
                                    -np.cos(self.smallbody.aspect_ang).value
                                    ])  # unit vector of sun-asteroid vector
+        # XYZ system such that +z = spin, +x = anti-sun dir(midnight)
 
         def _get_temp(theta__deg, phi__deg):
             return self.smallbody.get_temp_1d(colat__deg=theta__deg, lon__deg=phi__deg)
@@ -125,6 +124,12 @@ class MovingParticle(SmallBodyForceMixin):
         self.mass_den = ps["mass_den"]  # kg/m^3
         self.vel_eq = 2*PI*self.r_sb/self.smallbody.rot_period
         self.vel_eq_mps = (self.vel_eq.to(u.m/u.s)).value
+
+        self._a_bond = self.smallbody.a_bond.value
+        self._per_mass = 1/self.mass_kg
+        self._C_FSUN_r_over_rhel_sq = C_F_SUN*(self.radius_um/self.r_hel_au)**2
+        self._C_FTHR_emis_rsq = C_F_THER*self.smallbody.emissivity.value*self.radius_um**2
+
 
     def set_func_Qprbar(self, func_Qprbar, func_Qprbar_sun=None):
         """
@@ -164,8 +169,8 @@ class MovingParticle(SmallBodyForceMixin):
             at sunrise) of the initial position.
         """
         height_init = change_to_quantity(height, u.m, to_value=False)
-        heignt_init_m = (height_init.to(u.m)).value
-        r = self.r_sb_m + heignt_init_m
+        height_init_m = (height_init.to(u.m)).value
+        r = self.r_sb_m + height_init_m
         th = change_to_quantity(colat, u.deg, to_value=True)
         ph = change_to_quantity(lon, u.deg, to_value=True)
 
@@ -174,11 +179,11 @@ class MovingParticle(SmallBodyForceMixin):
         self.trace_time = [0]
         self.trace_pos_sph = [np.array([r, th, ph])]
         if vec_vel_init is None:
-            vec_vel_init = (self.vel_eq_mps*sin_deg(th)*np.array([-sin_deg(ph), cos_deg(ph), 0]))
+            vec_vel_init = (self.vel_eq_mps*sin_deg(th)
+                            *np.array([-sin_deg(ph), cos_deg(ph), 0]))
         self.trace_vel_xyz = [np.array(vec_vel_init)]
         self.trace_rvec = [np.array(self.trace_pos_xyz[0])/r]
-        self.trace_height = [heignt_init_m]
-        self.trace_heightpar = [1/(1 + (heignt_init_m/self.r0_par_m)**2)]
+        self.trace_height = [height_init_m]
         self.trace_musun = [self.get_musun(th, ph)]
         self.trace_temp = [self.get_temp_1d(th, ph)]
 
@@ -197,7 +202,7 @@ class MovingParticle(SmallBodyForceMixin):
             The position in XYZ format in meters units. For performance issue,
             it's recommended to use float than `~astropy.Quantity`.
         """
-        r_sph, th, ph = cart2sph(*pos_xyz, **CART2SPH_KW)
+        r_sph, th, ph = cart2sph(*pos_xyz, from_0=True, degree=True, to_lonlat=False)
 
         height_par = 1/(1 + ((r_sph - self.r_sb_m)/self.r0_par_m)**2)
 
@@ -215,21 +220,15 @@ class MovingParticle(SmallBodyForceMixin):
             f_sun = 0
             f_ref = 0
         else:
-            f_sun, f_ref = self._force_sun(r_um=self.radius_um,
-                                           r_hel_au=self.r_hel_au,
-                                           a_bond=self.smallbody.a_bond.value,
-                                           height_par=height_par,
-                                           mu_sun=mu_sun,
-                                           val_Qprbar=self.val_Qprbar_sun)
-        f_ther = self._force_ther(r_um=self.radius_um,
-                                  temp=temp_s,
-                                  height_par=height_par,
-                                  emissivity=self.smallbody.emissivity.value,
-                                  val_Qprbar=val_Qprbar_surf)
+            f_sun = self._C_FSUN_r_over_rhel_sq*self.val_Qprbar_sun
+            f_ref = self._a_bond*height_par*mu_sun*f_sun
 
-        a_sun_vec = (f_sun/self.mass_kg)*self.f_sun_dir
-        a_ref_vec = (f_ref/self.mass_kg)*unit_r
-        a_ther_vec = (f_ther/self.mass_kg)*unit_r
+        # TODO: Will it be faster if we have spline of temp^4 a priori?
+        f_ther = self._C_FTHR_emis_rsq*val_Qprbar_surf*height_par*temp_s**4
+
+        a_sun_vec = f_sun*self._per_mass*self.f_sun_dir
+        a_ref_vec = f_ref*self._per_mass*unit_r
+        a_ther_vec = f_ther*self._per_mass*unit_r
         a_grav_vec = -(GG*self.m_sb_kg/r_sph**2)*unit_r
         a_all_vec = a_sun_vec + a_ref_vec + a_ther_vec + a_grav_vec
 
@@ -259,18 +258,17 @@ class MovingParticle(SmallBodyForceMixin):
             acc_start=self.trace_a_all_xyz[-1]
         )
         # TODO: Maybe put cart2sph at the ``wrapup``?
-        newpos_sph = cart2sph(*newpos_xyz, **CART2SPH_KW)
+        newpos_sph = cart2sph(*newpos_xyz, from_0=True, degree=True, to_lonlat=False)
         height = newpos_sph[0] - self.r_sb_m
-        height_par = 1/(1 + (height/self.r0_par_m)**2)
         self.trace_time.append(self.trace_time[-1] + dt)
         self.trace_pos_xyz.append(newpos_xyz)
-        self.trace_rvec.append(np.array(newpos_xyz)/newpos_sph[0])
         self.trace_pos_sph.append(newpos_sph)
         self.trace_vel_xyz.append(newvel_xyz)
-        self.trace_height.append(height)
-        self.trace_heightpar.append(height_par)
+        # self.trace_rvec.append(np.array(newpos_xyz)/newpos_sph[0])
+        # self.trace_height.append(height)
         self.trace_musun.append(self.get_musun(newpos_sph[1], newpos_sph[2]))
         self.trace_temp.append(self.get_temp_1d(newpos_sph[1], newpos_sph[2]))
+        return height
         # NOTE: some of these append are not included in the acc_func, because
         #   if we use leapfrog_dkd, the times at which we calculate the
         #   acceleration must be different form those we use for calculate the
@@ -310,10 +308,10 @@ class MovingParticle(SmallBodyForceMixin):
         self.halt_code_str = None
         i = 0
         while True:
-            self._propagate(dt)
+            height = self._propagate(dt)
             i += 1
             if check_min:
-                if self.trace_height[-1] < self.min_height_m:
+                if height < self.min_height_m:
                     if verbose:
                         print(f"Halted ({i}-th iter): height < {self.min_height}.")
                     self.halt_code_str = "min_height"
@@ -322,7 +320,7 @@ class MovingParticle(SmallBodyForceMixin):
                     break
 
             if check_max:
-                if self.trace_height[-1] > self.max_height_m:
+                if height > self.max_height_m:
                     if verbose:
                         print(f"Halted ({i}-th iter): height > {self.max_height}.")
                     self.halt_code_str = "max_height"
@@ -337,20 +335,36 @@ class MovingParticle(SmallBodyForceMixin):
     def wrapup(self):
         """ Changes meaningful lists to numpy array
         """
-        _alltraces = ["trace_pos_xyz", "trace_pos_sph", "trace_vel_xyz",
-                      "trace_height", "trace_heightpar", "trace_musun",
-                      "trace_temp", "trace_time", "trace_rvec",
+        _alltraces = ["trace_pos_xyz", "trace_pos_sph", "trace_vel_xyz", "trace_time",
+                      "trace_musun", "trace_temp",
                       "trace_a_sun_xyz", "trace_a_ther_xyz",
                       "trace_a_grav_xyz", "trace_a_ref_xyz", "trace_a_all_xyz"
                       ]
         for attr in _alltraces:
             setattr(self, attr, np.array(getattr(self, attr)))
 
-            # NOTE: trace_a_sun is nothing but a constant scalar for all the
-            #   time, but just for the consistency, I let it make a 1-d ndarray
-            #   for it too.
-            self.trace_speed = np.linalg.norm(self.trace_vel_xyz, axis=1)
-            self.trace_a_sun = np.linalg.norm(self.trace_a_sun_xyz, axis=1)
-            self.trace_a_ref = np.linalg.norm(self.trace_a_ref_xyz, axis=1)
-            self.trace_a_ther = np.linalg.norm(self.trace_a_ther_xyz, axis=1)
-            self.trace_a_grav = np.linalg.norm(self.trace_a_grav_xyz, axis=1)
+        # NOTE: trace_a_sun is nothing but a constant scalar for all the time,
+        #   but just for the consistency, I let it make a 1-d ndarray for it
+        #   too.
+        self.trace_speed = np.linalg.norm(self.trace_vel_xyz, axis=1)
+        self.trace_a_sun = np.linalg.norm(self.trace_a_sun_xyz, axis=1)
+        self.trace_a_ref = np.linalg.norm(self.trace_a_ref_xyz, axis=1)
+        self.trace_a_ther = np.linalg.norm(self.trace_a_ther_xyz, axis=1)
+        self.trace_a_grav = np.linalg.norm(self.trace_a_grav_xyz, axis=1)
+
+        _trace_r = self.trace_pos_sph[:, 0]
+        self.trace_height = _trace_r - self.r_sb_m
+        self.trace_heightpar = 1/(1 + (self.trace_height/self.r0_par_m)**2)
+        # self.trace_musun = self.get_musun(
+        #     self.trace_pos_sph[:, 1], self.trace_pos_sph[:, 2]
+        # )
+        # self.trace_temp = self.get_temp_1d(
+        #     self.trace_pos_sph[:, 1], self.trace_pos_sph[:, 2]
+        # )
+        self.trace_rvec = np.array([
+            self.trace_pos_xyz[:, 0]/_trace_r,
+            self.trace_pos_xyz[:, 1]/_trace_r,
+            self.trace_pos_xyz[:, 2]/_trace_r
+        ])
+
+
