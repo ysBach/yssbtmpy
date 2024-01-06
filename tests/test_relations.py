@@ -5,10 +5,10 @@ import pytest
 from astropy import units as u
 from numpy.testing import assert_allclose as allclose
 
-from ..constants import NOUNIT, PI, S1AU, SIGMA_SB, TIU
-from ..relations import (AG2p, DH2p, G2q, T_eqm, pA2G, pD2H, pG2A, pH2D, q2G,
-                         solve_Gq, solve_pAG, solve_pDH, solve_temp_eqm,
-                         solve_thermal_par)
+from yssbtmpy.constants import NOUNIT, PI, S1AU, SIGMA_SB, TIU
+from yssbtmpy.relations import (AG2p, DH2p, G2q, T_eqm, pA2G, pD2H, pG2A, pH2D,
+                                q2G, solve_Gq, solve_pAG, solve_pDH,
+                                solve_temp_eqm, solve_thermal_par)
 
 Qo = dict(return_quantity=True)
 Qx = dict(return_quantity=False)
