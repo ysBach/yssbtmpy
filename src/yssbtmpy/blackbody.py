@@ -53,3 +53,5 @@ def b_lambda(wavelen, temperature):
     norm = SIGMA_SB * temp**4
     norm_radiance = np.pi * B_lambda(wavelen=wl, temperature=temp) / norm
     return norm_radiance
+
+

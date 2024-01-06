@@ -41,45 +41,6 @@ hapke_k_theta_phase = CloughTocher2DInterpolator(
     _HAPKE_K_VALS.ravel(),
 )
 
-# def _hgphi(pha, i):
-#     """Core function in IAU HG phase function model
-
-#     Parameters
-#     ----------
-#     pha : float or array_like of float
-#         Phase angle
-#     i   : int in [1, 2]
-#         Choose the form of function
-
-#     Returns
-#     -------
-#     numpy array of float
-
-#     Note
-#     ----
-#     See Bowell et al. (1989), Eq. A4.
-#     Directly from sbpy.photometry.HG
-#     """
-
-#     if i not in [1, 2]:
-#         raise ValueError('i needs to be 1 or 2, {0} received'.format(i))
-
-#     a, b, c = [3.332, 1.862], [0.631, 1.218], [0.986, 0.238]
-#     pha_half = pha*0.5
-#     sin_pha = np.sin(pha)
-#     tan_pha_half = np.tan(pha_half)
-#     w = np.exp(-90.56 * tan_pha_half * tan_pha_half)
-#     phiis = 1 - c[i-1]*sin_pha/(0.119+1.341*sin_pha-0.754*sin_pha*sin_pha)
-#     phiil = np.exp(-a[i-1] * tan_pha_half**b[i-1])
-#     return w*phiis + (1-w)*phiil
-
-
-# def _hgphi_approx(pha, i):
-#     a, b = [3.33, 1.87], [0.63, 1.22]
-#     pha_half = pha*0.5
-#     tan_pha_half = np.tan(pha_half)
-#     return np.exp(-a[i-1]*tan_pha_half**b[i-1])
-
 
 @njit
 def _hgphi12_nb(alpha__deg):
@@ -106,10 +67,7 @@ def iau_hg(alphas, hmag=10, gpar=0.15, r_hel=1., r_obs=1.):
     """The IAU HG phase function model in magnitude
     """
     inten = iau_hg_linear(alphas, gpar)
-    # hgphi1 = _hgphi(alphas*D2R, 1)
-    # hgphi2 = _hgphi(alphas*D2R, 2)
-    mag = hmag - 2.5*np.log10(inten) + 5*np.log10(r_hel*r_obs)
-    return np.array(mag)
+    return np.array(hmag - 2.5*np.log10(inten) + 5*np.log10(r_hel*r_obs))
 
 
 # def hapke_rough_corr_factor(thetabar=0):

@@ -1,0 +1,41 @@
+[build-system]
+requires = [
+    "setuptools>=61.0",
+    "setuptools_scm",
+]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "yssbtmpy"
+dynamic = ["version"]
+authors = [
+    { name = "ysBach", email = "ysbach93@gmail.com" },
+]
+description = "Python package to do thermal modeling on atmosphereless bodies in the Solar system."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+keywords = []
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "astropy",
+    "numba",
+    "numpy",
+]
+
+
+[tool.setuptools_scm]
+write_to = "src/yssbtmpy/_version.py"
+
+[project.urls]
+Homepage = "https://github.com/ysBach/yssbtmpy"
+# Documentation = "https://github.com/ysBach/yssbtmpy"
+Repository = "https://github.com/ysBach/yssbtmpy"
+"Bug Tracker" = "https://github.com/ysBach/yssbtmpy/issues"
+# Changelog = "https://github.com/ysBach/yssbtmpy/CHANGELOG.md"
+
+
