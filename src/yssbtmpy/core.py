@@ -14,7 +14,7 @@ from scipy.interpolate import (RectBivariateSpline, RegularGridInterpolator,
 from .constants import GG_Q, NOUNIT, PI, R2D, TIU
 from .relations import (p2w, solve_Gq, solve_pAG, solve_pDH, solve_rmrho,
                         solve_temp_eqm, solve_thermal_par)
-from .util import (F_OR_Q, F_OR_Q_OR_ARR, M_bf2ss, add_hdr, calc_aspect_ang,
+from .util import (F_OR_Q, F_OR_Q_OR_ARR, mat_bf2ss, add_hdr, calc_aspect_ang,
                    calc_flux_tpm, calc_mu_vals, calc_uarr_tpm, calc_varr_orbit,
                    change_to_quantity, lonlat2cart)
 
@@ -666,26 +666,26 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
     def calc_flux(self, wlen: float):
         """ Calculates flux in W/m^2/um
         """
-        phases = np.linspace(0, 2*PI - self.dlon, self.nlon)*u.rad
-        # colats is set s.t. nlat=1 gives colat=90 deg.
-        colats = np.linspace(0 + self.dlat/2, PI - self.dlat/2, self.nlat)*u.rad
-        self.mu_obss = calc_mu_vals(r_vec=self.r_obs_vec,
-                                    spin_vec=self.spin_vec,
-                                    phases=phases,
-                                    colats=colats,
-                                    full=False)
+
+        # calculate mu vals if it is None:
+        if self.mu_obss is None:
+            phases = np.linspace(0, 2*PI - self.dlon, self.nlon)*u.rad
+            # colats is set s.t. nlat=1 gives colat=90 deg.
+            colats = np.linspace(0 + self.dlat/2, PI - self.dlat/2, self.nlat)*u.rad
+            self.mu_obss = calc_mu_vals(r_vec=self.r_obs_vec,
+                                        spin_vec=self.spin_vec,
+                                        phases=phases,
+                                        colats=colats,
+                                        full=False)
         self.wlen = np.array(wlen)
         if self.wlen.ndim != 1:
-            raise ValueError(
-                f"wlen must be 1-D (now it's {self.wlen.ndim}-D).")
+            raise ValueError(f"wlen must be 1-D (now it's {self.wlen.ndim}-D).")
 
         if self.tempsurf is None:
-            raise ValueError(
-                "tempsurf is None. Please run .calc_temp() first.")
+            raise ValueError("tempsurf is None. Please run .calc_temp() first.")
 
         fluxarr = np.zeros(self.wlen.size, dtype=float)
-        calc_flux_tpm(fluxarr, wlen=self.wlen,
-                      tempsurf=self.tempsurf, mu_obss=self.mu_obss)
+        calc_flux_tpm(fluxarr, wlen=self.wlen, tempsurf=self.tempsurf, mu_obss=self.mu_obss)
 
         self.flux = fluxarr*np.pi*(self.radi_eff**2)
 
@@ -1364,8 +1364,8 @@ class OrbitingSmallBody:
         # self.varrs_aph = np.array(self.varrs_aph)
 
         mat_bf2ss = np.array(
-            [M_bf2ss(colat=90*u.deg - lat)
-             for lat in change_to_quantity(self.lonlats[:, 1], u.deg)]
+            [mat_bf2ss(colat__deg=90 - lat)
+             for lat in change_to_quantity(self.lonlats[:, 1], u.deg, to_value=True)]
         )
         self.dt_1 = self.rot_period.to_value(u.day)/self.n_per_rot
         calc_jds = np.arange(self.eph_jds[0], self.eph_jds[-1] + self.dt_1, self.dt_1)
