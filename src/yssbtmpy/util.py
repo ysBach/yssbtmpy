@@ -498,12 +498,12 @@ def mat_fs2bf(phase: F_OR_ARR) -> np.ndarray:
     return np.array([[-_c, -_s, 0], [_s, -_c, 0], [0, 0, 1]])
 
 
-def mat_bf2ss(colat__deg: F_OR_ARR) -> np.ndarray:
+def mat_bf2ss(colat: F_OR_Q_OR_ARR) -> np.ndarray:
     """ The conversion matrix to convert body-fixed frame to surface system.
 
     Parameters
     ----------
-    colat__deg : float or ndarray
+    colat__deg : float, Quantity or ndarray
         The co-latitude of the surface (in degrees unit). Co-latitude is the
         angle between the pole (spin) vector and the normal vector of the
         surface of interest.
@@ -520,6 +520,7 @@ def mat_bf2ss(colat__deg: F_OR_ARR) -> np.ndarray:
     will give the components of vector ``a`` in surface system, where ``m`` is
     the result of this function.
     """
+    colat__deg = change_to_quantity(colat, u.deg, to_value=True)
     _c = np.cos(colat__deg * D2R)
     _s = np.sin(colat__deg * D2R)
     return np.array(((0., 1., 0.), (-_c, 0., _s), (_s, 0., _c)))
@@ -585,29 +586,21 @@ def calc_mu_vals(
     r_vec_norm = r_vec/np.linalg.norm(r_vec)
     spin_vec_norm = spin_vec/np.linalg.norm(spin_vec)
 
-    mat_fs2bf_arr = []
-    mat_bf2ss_arr = []
-    dirs = []
-    mu_vals = []
-    mat_ec2fs = mat_ec2fs_nb(r_vec_norm=r_vec_norm, spin_vec_norm=spin_vec_norm)
+    mat_fs2bf_arr = np.array([mat_fs2bf(phase=phase) for phase in phases__rad])
+    mat_bf2ss_arr = np.array([mat_bf2ss(colat=colat) for colat in colats__deg])
+    _mat_ec2fs = mat_ec2fs(r_vec=r_vec_norm, spin_vec=spin_vec_norm)
 
-    for phase in phases__rad:
-        mat_fs2bf_arr.append(mat_fs2bf(phase=phase))
+    solar_dirs = np.array([
+        _m @ mat_fs2bf_arr @ _mat_ec2fs @ -(r_vec_norm)
+        for _m in mat_bf2ss_arr
+    ])
 
-    for colat in colats__deg:
-        mat_bf2ss_arr.append(mat_bf2ss(colat=colat))
-
-    mat_fs2bf_arr = np.array(mat_fs2bf_arr)
-    mat_bf2ss_arr = np.array(mat_bf2ss_arr)
-    for mat_bf2ss in mat_bf2ss_arr:
-        dirs.append(mat_bf2ss @ mat_fs2bf_arr @ mat_ec2fs @ -(r_vec_norm))
-    solar_dirs = np.array(dirs)
     # Z component = cos i_sun for mu_sun case.
-    mu_vals = solar_dirs.copy()[:, :, 2]
+    mu_vals = solar_dirs[:, :, 2].copy() if full else solar_dirs[:, :, 2]
     mu_vals[mu_vals < 0] = 0
 
     if full:
-        return mu_vals, solar_dirs, mat_ec2fs, mat_fs2bf_arr, mat_bf2ss_arr
+        return mu_vals, solar_dirs, _mat_ec2fs, mat_fs2bf_arr, mat_bf2ss_arr
     return mu_vals
 
 
