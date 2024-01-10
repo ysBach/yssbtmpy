@@ -610,10 +610,9 @@ def mat_bf2ss_nb(colat__deg: float) -> np.ndarray:
 
     See mat_bf2ss for the docstring.
     """
-    c = np.cos(colat__deg * np.pi/180)
-    s = np.sin(colat__deg * np.pi/180)
-    m = np.array(((0., 1., 0.), (-c, 0., s), (s, 0., c)))
-    return m
+    _c = np.cos(colat__deg * np.pi/180)
+    _s = np.sin(colat__deg * np.pi/180)
+    return np.array(((0., 1., 0.), (-_c, 0., _s), (_s, 0., _c)))
 
 
 @njit(cache=True)
@@ -640,10 +639,9 @@ def mat_fs2bf_nb(phase__rad: float) -> np.ndarray:
 
     See mat_fs2bf for the docstring.
     """
-    c = np.cos(phase__rad)
-    s = np.sin(phase__rad)
-    m = np.array(([-c, -s, 0], [s, -c, 0], [0, 0, 1]))
-    return m
+    _c = np.cos(phase__rad)
+    _s = np.sin(phase__rad)
+    return np.array(([-_c, -_s, 0], [_s, -_c, 0], [0, 0, 1]))
 
 
 @njit
@@ -660,8 +658,6 @@ def calc_mu_val_nb(
     solar_dir = (mat_bf2ss @ m2 @ m1 @ -(r_vec_norm))
     # Z component = cos i_sun for mu_sun case:
     mu_val = solar_dir[2]
-    # if abs(mu_val) > 1:
-    #     print(r_hel_vec_norm, spin_vec_norm, m1, m2, solar_dir, mu_val)
     return mu_val if mu_val > 0. else 0.
 
 
@@ -680,7 +676,7 @@ def calc_mu_val_nb(
 #         idarr[i] = idx_of_eph_jds
 
 
-@njit(parallel=True,)  # fastmath={"nnan", "ninf", "nsz"}
+@njit(parallel=True, cache=True)  # fastmath={"nnan", "ninf", "nsz"}
 def calc_varr_orbit(
         varrs_init: np.ndarray,
         phi0s: np.ndarray,
