@@ -16,7 +16,7 @@ __all__ = [
     "change_to_quantity", "add_hdr", "parse_obj",
     "lonlat2cart", "sph2cart", "cart2sph",
     "calc_aspect_ang",
-    "M_ec2fs", "M_bf2ss",
+    "mat_ec2fs", "mat_bf2ss",
     "calc_mu_vals",
     "newton_iter_tpm", "calc_uarr_tpm",
     "calc_varr_orbit"
@@ -422,7 +422,7 @@ def calc_aspect_ang(
     return aspect_ang, aspect_ang_obs, dlon_sol_obs
 
 
-def M_ec2fs(r_vec: np.ndarray, spin_vec: np.ndarray) -> np.ndarray:
+def mat_ec2fs(r_vec: np.ndarray, spin_vec: np.ndarray) -> np.ndarray:
     """ The conversion matrix to convert ecliptic to frame system.
 
     Parameters
@@ -473,7 +473,7 @@ def M_ec2fs(r_vec: np.ndarray, spin_vec: np.ndarray) -> np.ndarray:
     return inv(m1, overwrite_a=True, check_finite=False)
 
 
-def M_fs2bf(phase: F_OR_ARR) -> np.ndarray:
+def mat_fs2bf(phase: F_OR_ARR) -> np.ndarray:
     """ The conversion matrix to convert frame system to body-fixed frame.
 
     Parameters
@@ -493,21 +493,20 @@ def M_fs2bf(phase: F_OR_ARR) -> np.ndarray:
     will give the components of vector ``a`` in body-fixed frame, where ``m``
     is the result of this function.
     """
-    c = np.cos(phase)
-    s = np.sin(phase)
-    m = np.array([[-c, -s, 0], [s, -c, 0], [0, 0, 1]])
-    return m
+    _c = np.cos(phase)
+    _s = np.sin(phase)
+    return np.array([[-_c, -_s, 0], [_s, -_c, 0], [0, 0, 1]])
 
 
-def M_bf2ss(colat: F_OR_Q_OR_ARR) -> np.ndarray:
+def mat_bf2ss(colat__deg: F_OR_ARR) -> np.ndarray:
     """ The conversion matrix to convert body-fixed frame to surface system.
 
     Parameters
     ----------
-    colat : float or ~astropy.Quantity
-        The co-latitude of the surface (in degrees unit if float). Co-latitude
-        is the angle between the pole (spin) vector and the normal vector of
-        the surface of interest.
+    colat__deg : float or ndarray
+        The co-latitude of the surface (in degrees unit). Co-latitude is the
+        angle between the pole (spin) vector and the normal vector of the
+        surface of interest.
 
     Return
     ------
@@ -521,12 +520,9 @@ def M_bf2ss(colat: F_OR_Q_OR_ARR) -> np.ndarray:
     will give the components of vector ``a`` in surface system, where ``m`` is
     the result of this function.
     """
-    colat__deg = change_to_quantity(colat, u.deg, to_value=True)
-
-    c = np.cos(colat__deg * D2R)
-    s = np.sin(colat__deg * D2R)
-    m = np.array(((0., 1., 0.), (-c, 0., s), (s, 0., c)))
-    return m
+    _c = np.cos(colat__deg * D2R)
+    _s = np.sin(colat__deg * D2R)
+    return np.array(((0., 1., 0.), (-_c, 0., _s), (_s, 0., _c)))
 
 
 def calc_mu_vals(
@@ -562,18 +558,18 @@ def calc_mu_vals(
 
     mat_ec2fs : ndarray
         The conversion matrix to convert ecliptic to frame system, i.e., the
-        result of ``M_ec2fs(r_vec=r_vec, spin_vec=spin_vec)``.
+        result of ``mat_ec2fs(r_vec=r_vec, spin_vec=spin_vec)``.
         Returned only if ``full=True``.
 
     mat_fs2bf_arr : ndarray
         The conversion matrix to convert frame system to body-fixed frame,
-        i.e., the result of ``M_fs2bf(phase=phase)`` for all ``phase in
+        i.e., the result of ``mat_fs2bf(phase=phase)`` for all ``phase in
         phases``.
         Returned only if ``full=True``.
 
     mat_bf2ss_arr : ndarray
         The conversion matrix to convert body-fixed frame to surface system,
-        i.e., the result of ``M_bf2ss(colat__deg=colat)`` for all ``colat in
+        i.e., the result of ``mat_bf2ss(colat__deg=colat)`` for all ``colat in
         colats``..
         Returned only if ``full=True``.
 
@@ -593,13 +589,13 @@ def calc_mu_vals(
     mat_bf2ss_arr = []
     dirs = []
     mu_vals = []
-    mat_ec2fs = M_ec2fs_nb(r_vec_norm=r_vec_norm, spin_vec_norm=spin_vec_norm)
+    mat_ec2fs = mat_ec2fs_nb(r_vec_norm=r_vec_norm, spin_vec_norm=spin_vec_norm)
 
     for phase in phases__rad:
-        mat_fs2bf_arr.append(M_fs2bf(phase=phase))
+        mat_fs2bf_arr.append(mat_fs2bf(phase=phase))
 
     for colat in colats__deg:
-        mat_bf2ss_arr.append(M_bf2ss(colat=colat))
+        mat_bf2ss_arr.append(mat_bf2ss(colat=colat))
 
     mat_fs2bf_arr = np.array(mat_fs2bf_arr)
     mat_bf2ss_arr = np.array(mat_bf2ss_arr)
@@ -616,10 +612,10 @@ def calc_mu_vals(
 
 
 @njit(cache=True)
-def M_bf2ss_nb(colat__deg: float) -> np.ndarray:
+def mat_bf2ss_nb(colat__deg: float) -> np.ndarray:
     """ The conversion matrix to convert body-fixed frame to surface system.
 
-    See M_bf2ss for the docstring.
+    See mat_bf2ss for the docstring.
     """
     c = np.cos(colat__deg * np.pi/180)
     s = np.sin(colat__deg * np.pi/180)
@@ -628,10 +624,10 @@ def M_bf2ss_nb(colat__deg: float) -> np.ndarray:
 
 
 @njit(cache=True)
-def M_ec2fs_nb(r_vec_norm: np.ndarray, spin_vec_norm: np.ndarray) -> np.ndarray:
+def mat_ec2fs_nb(r_vec_norm: np.ndarray, spin_vec_norm: np.ndarray) -> np.ndarray:
     """ The conversion matrix to convert ecliptic to frame system.
 
-    see M_ec2fs for the docstring.
+    see mat_ec2fs for the docstring.
     """
     # Z_fs_ec = spin_vec.copy()
     Y_fs_ec = np.cross(spin_vec_norm, -r_vec_norm)
@@ -646,10 +642,10 @@ def M_ec2fs_nb(r_vec_norm: np.ndarray, spin_vec_norm: np.ndarray) -> np.ndarray:
 
 
 @njit(cache=True)
-def M_fs2bf_nb(phase__rad: float) -> np.ndarray:
+def mat_fs2bf_nb(phase__rad: float) -> np.ndarray:
     """ The conversion matrix to convert frame system to body-fixed frame.
 
-    See M_fs2bf for the docstring.
+    See mat_fs2bf for the docstring.
     """
     c = np.cos(phase__rad)
     s = np.sin(phase__rad)
@@ -666,8 +662,8 @@ def calc_mu_val_nb(
 ):
     """ Calculates mu value
     """
-    m1 = M_ec2fs_nb(r_vec_norm=r_vec_norm, spin_vec_norm=spin_vec_norm)
-    m2 = M_fs2bf_nb(phase__rad=phi__rad)
+    m1 = mat_ec2fs_nb(r_vec_norm=r_vec_norm, spin_vec_norm=spin_vec_norm)
+    m2 = mat_fs2bf_nb(phase__rad=phi__rad)
     solar_dir = (mat_bf2ss @ m2 @ m1 @ -(r_vec_norm))
     # Z component = cos i_sun for mu_sun case:
     mu_val = solar_dir[2]
@@ -786,7 +782,7 @@ def calc_varr_orbit(
     #     varrs_surf[ipoint, 0] = varr_old[0]
     #     lon = lons__deg[ipoint]
     #     lat = lats__deg[ipoint]
-    #     m3 = M_bf2ss_nb(colat__deg=90-lat)
+    #     m3 = mat_bf2ss_nb(colat__deg=90-lat)
 
     #     idx_of_eph_jds = 0
     #     time_i = eph_jds[0]
