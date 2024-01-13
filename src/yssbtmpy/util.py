@@ -590,17 +590,17 @@ def calc_mu_vals(
     mat_bf2ss_arr = np.array([mat_bf2ss(colat=colat) for colat in colats__deg])
     _mat_ec2fs = mat_ec2fs(r_vec=r_vec_norm, spin_vec=spin_vec_norm)
 
-    solar_dirs = np.array([
+    _dirs = np.array([
         _m @ mat_fs2bf_arr @ _mat_ec2fs @ -(r_vec_norm)
         for _m in mat_bf2ss_arr
     ])
 
     # Z component = cos i_sun for mu_sun case.
-    mu_vals = solar_dirs[:, :, 2].copy() if full else solar_dirs[:, :, 2]
+    mu_vals = _dirs[:, :, 2].copy() if full else _dirs[:, :, 2]
     mu_vals[mu_vals < 0] = 0
 
     if full:
-        return mu_vals, solar_dirs, _mat_ec2fs, mat_fs2bf_arr, mat_bf2ss_arr
+        return mu_vals, _dirs, _mat_ec2fs, mat_fs2bf_arr, mat_bf2ss_arr
     return mu_vals
 
 
@@ -641,7 +641,8 @@ def mat_fs2bf_nb(phase__rad: float) -> np.ndarray:
     """
     _c = np.cos(phase__rad)
     _s = np.sin(phase__rad)
-    return np.array(([-_c, -_s, 0], [_s, -_c, 0], [0, 0, 1]))
+    m = np.array(([-_c, -_s, 0.], [_s, -_c, 0.], [0., 0., 1.]))
+    return m
 
 
 @njit
@@ -1007,7 +1008,7 @@ def calc_uarr_tpm(
 
 
 @njit(parallel=True)
-def calc_flux_tpm(fluxarr, wlen, tempsurf, mu_obss):
+def calc_flux_tpm(fluxarr, wlen, tempsurf, mu_obss, colats, dlat, dlon):
     """ Calculates the fulx at given wlen in W/m^2/m
 
     Parameters
@@ -1024,6 +1025,12 @@ def calc_flux_tpm(fluxarr, wlen, tempsurf, mu_obss):
     mu_obs : 2-d array
         The cosine factor for the emission direction to the observer. The value
         at `tempsurf[i, j]` must be corresponding to the `mu_obs[i, j]`.
+    colats : 1-d array
+        The co-latitude of the surface (in radians unit). Co-latitude is the
+        angle between the pole (spin) vector and the normal vector of the
+        surface of interest.
+    dlat, dlon : float
+        The delta-latitude and -longitude of patches in radian unit.
     """
     for k in nb.prange(len(wlen)):
         wl = wlen[k]
@@ -1032,10 +1039,12 @@ def calc_flux_tpm(fluxarr, wlen, tempsurf, mu_obss):
         for i in range(tempsurf.shape[0]):
             for j in range(tempsurf.shape[1]):
                 mu_obs = mu_obss[i, j]
-                temp = tempsurf[i, j]
-                radiance = factor1 * 1/(np.exp(factor2/temp) - 1)
-                # print(i, j, np.exp(factor2/temp))
-                fluxarr[k] += radiance*mu_obs
+                if mu_obs > 0:
+                    area = np.sin(colats[i])*dlon*dlat
+                    temp = tempsurf[i, j]
+                    radiance = factor1 * 1/(np.exp(factor2/temp) - 1)
+                    # print(i, j, np.exp(factor2/temp))
+                    fluxarr[k] += radiance*mu_obs*area
 
 
 @njit(parallel=True)

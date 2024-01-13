@@ -60,6 +60,7 @@ class SmallBodyMixin():
             # aspect_ang_obs = (180-np.rad2deg(np.arccos(aux_cos_obs)))*u.deg
 
             # Using the sign(alpha) convention from DelboM 2004 PhDT p.144,
+            # that is, it is + when observer sees the afternoon/evening side.
             # sign([(-r_obs) x (-r_sun)] \cdot spin) = sign(alpha) = sign(dphi)
             # where dphi is the longitude difference between Sub-solar and
             # Sub-observer points:
@@ -529,6 +530,24 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             full=False
         )
 
+    def set_muobss(self):
+        self.phases = np.linspace(0, 2*PI - self.dlon, self.nlon)*u.rad
+        # colats is set s.t. nlat=1 gives colat=90 deg.
+        if self.lats is None:
+            self.colats = np.linspace(self.dlat/2, PI - self.dlat/2, self.nlat)*u.rad
+        else:
+            self.colats = (90*u.deg - self.lats).to(u.rad)
+        self.tpm_lats = 90 - self.colats.to_value(u.deg)
+        self.tpm_lons = self.phases.to_value(u.deg)
+
+        self.mu_obss = calc_mu_vals(
+            r_vec=-1*self.r_obs_vec,
+            spin_vec=self.spin_vec,
+            phases=self.phases - change_to_quantity(self.phase_ang, u.rad),
+            colats=self.colats,
+            full=False
+        )
+
     def calc_temp(
             self,
             full: bool = False,
@@ -666,17 +685,9 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
     def calc_flux(self, wlen: float):
         """ Calculates flux in W/m^2/um
         """
-
-        # calculate mu vals if it is None:
         if self.mu_obss is None:
-            phases = np.linspace(0, 2*PI - self.dlon, self.nlon)*u.rad
-            # colats is set s.t. nlat=1 gives colat=90 deg.
-            colats = np.linspace(0 + self.dlat/2, PI - self.dlat/2, self.nlat)*u.rad
-            self.mu_obss = calc_mu_vals(r_vec=self.r_obs_vec,
-                                        spin_vec=self.spin_vec,
-                                        phases=phases,
-                                        colats=colats,
-                                        full=False)
+            self.set_muobss()
+
         self.wlen = np.array(wlen)
         if self.wlen.ndim != 1:
             raise ValueError(f"wlen must be 1-D (now it's {self.wlen.ndim}-D).")
@@ -685,9 +696,14 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             raise ValueError("tempsurf is None. Please run .calc_temp() first.")
 
         fluxarr = np.zeros(self.wlen.size, dtype=float)
-        calc_flux_tpm(fluxarr, wlen=self.wlen, tempsurf=self.tempsurf, mu_obss=self.mu_obss)
+        calc_flux_tpm(fluxarr, wlen=self.wlen, tempsurf=self.tempsurf, mu_obss=self.mu_obss,
+                      colats=change_to_quantity(self.colats, u.rad, to_value=True),
+                      dlon=self.dlon, dlat=self.dlat)
 
-        self.flux = fluxarr*np.pi*(self.radi_eff**2)
+        self.flux = (fluxarr
+                     * np.pi
+                     * (change_to_quantity(self.radi_eff, u.m, to_value=True)**2)
+                     / (change_to_quantity(self.r_obs, u.m, to_value=True)**2))
 
     def get_temp_1d(self, colat__deg, lon__deg):
         """ Return 1d array of temperature.
@@ -926,7 +942,7 @@ class OrbitingSmallBody:
     rot_period: F_OR_Q = None
     # ---  other (TPM related)
     lonlats: np.ndarray = np.array(((0, 0), (180, 0), (0, 45), (0, -45)))*u.deg
-    deps: np.ndarray = np.arange(0, 10.1, 0.2)
+    deps: np.ndarray = field(default_factory=np.arange(0, 10.1, 0.2))
     n_per_rot: float = 360
     n_per_rot_aph: float = 360
     ignore_stability: bool = False
