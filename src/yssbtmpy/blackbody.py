@@ -4,7 +4,7 @@ from .constants import CC, HH, KB, SIGMA_SB
 from .util import change_to_quantity
 
 
-__all__ = ["B_lambda", "b_lambda"]
+__all__ = ["B_lambda", "b_lambda", "flam2jy", "jy2flam"]
 
 
 def B_lambda(wavelen, temperature):
@@ -55,3 +55,31 @@ def b_lambda(wavelen, temperature):
     return norm_radiance
 
 
+def flam2jy(flam, wlen):
+    """ Convert flux density from [W/m2/um] to [Jy].
+    Parameters
+    ----------
+    flam : array-like
+        The flux density in [W/m2/um].
+
+    wlen : array-like
+        The wavelength in um.
+
+    1Jy = 10-26 W⋅m-2⋅Hz-1
+    """
+    return 3.33564095e+11 * flam * wlen**2
+
+
+def jy2flam(jy, wlen):
+    """ Convert flux density from [Jy] to [W/m2/um].
+    Parameters
+    ----------
+    jy : array-like
+        The flux density in [Jy].
+
+    wlen : array-like
+        The wavelength in um.
+
+    1Jy = 10-26 W⋅m-2⋅Hz-1
+    """
+    return 299792458.0/wlen**2 * jy
