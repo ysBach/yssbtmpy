@@ -364,7 +364,7 @@ def solve_temp_eqm(
 
     Parameters
     ----------
-    Teqm__K : float or array-like
+    temp_eqm : float or array-like
         The equilibrium temperature (in K if float).
 
     a_bond : float or array-like
