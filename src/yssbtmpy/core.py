@@ -636,9 +636,9 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             self.spl_musun = interp1d(lons_spl, _mu_suns[0], kind="linear",
                                       bounds_error=False, fill_value="extrapolate")
 
-        if self.thermal_par.value < 1.e-6:
-            warn("Thermal parameter too small: Automatically set to 1.e-6.")
-            self.thermal_par = 1.e-6*NOUNIT
+        if self.thermal_par.value < 1.e-8:
+            warn("Thermal parameter too small: Automatically set to 1.e-8.")
+            self.thermal_par = 1.e-8*NOUNIT
 
         calc_uarr_tpm(
             u_arr,
@@ -684,26 +684,33 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
 
     def calc_flux(self, wlen: float):
         """ Calculates flux in W/m^2/um
+        wlen : float, Quantity
+            The wavelength in microns (if `float`).
         """
         if self.mu_obss is None:
             self.set_muobss()
 
-        self.wlen = np.array(wlen)
+        self.wlen = change_to_quantity(wlen, u.um, to_value=False)
         if self.wlen.ndim != 1:
             raise ValueError(f"wlen must be 1-D (now it's {self.wlen.ndim}-D).")
+        wlen__m = self.wlen.to_value(u.m)
 
         if self.tempsurf is None:
             raise ValueError("tempsurf is None. Please run .calc_temp() first.")
 
         fluxarr = np.zeros(self.wlen.size, dtype=float)
-        calc_flux_tpm(fluxarr, wlen=self.wlen, tempsurf=self.tempsurf, mu_obss=self.mu_obss,
-                      colats=change_to_quantity(self.colats, u.rad, to_value=True),
-                      dlon=self.dlon, dlat=self.dlat)
+        calc_flux_tpm(
+            fluxarr,
+            wlen__m=wlen__m, tempsurf=self.tempsurf, mu_obss=self.mu_obss,
+            colats=change_to_quantity(self.colats, u.rad, to_value=True),
+            dlon=self.dlon, dlat=self.dlat
+        )
 
         self.flux = (fluxarr
-                     * np.pi
+                     * self.emissivity
                      * (change_to_quantity(self.radi_eff, u.m, to_value=True)**2)
-                     / (change_to_quantity(self.r_obs, u.m, to_value=True)**2))
+                     / (change_to_quantity(self.r_obs, u.m, to_value=True)**2)
+                     / 1.e+6)  # W/m^2/**um**
 
     def get_temp_1d(self, colat__deg, lon__deg):
         """ Return 1d array of temperature.
