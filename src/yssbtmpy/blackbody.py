@@ -5,55 +5,41 @@ from scipy.integrate import trapezoid
 from .constants import CC, HH, KB, PI, SIGMA_SB
 from .util import to_val
 
-__all__ = ["B_lambda", "b_lambda", "flam2jy", "jy2flam", "flam2ab", "planck_avg"]
+__all__ = ["B_lambda", "flam2jy", "jy2flam", "flam2ab", "planck_avg"]
 
 
-def B_lambda(wavelen, temperature):
-    """ Calculates black body radiance [energy/time/area/length/sr] = [W/m2/m/sr]
+def B_lambda(wlen, temperature, normalized=False):
+    """ Calculates black body radiance [W/m2/um/sr]
     Parameters
     ----------
-    wavelen : float or `~Quantity`, `~numpy.ndarray` of such.
-        The wavelengths. In meter unit if not Quantity.
+    wlen : float or `~Quantity`, `~numpy.ndarray` of such.
+        The wlengths. In um unit if not Quantity.
 
     temperature : float or `~Quantity`
         The temperature. In Kelvin unit if not Quantity. For specific purpose,
         you can give it in an ndarray format, but not recommended.
 
+    normalized : bool
+        If `True`, the radiance is normalized by the Stefan-Boltzmann relation
+        (``int(B_lambda dlambda) = SIGMA_SB * T**4 / PI``), so the returned
+        object has the unit of [1/um]. Otherwise, the radiance is not
+        normalized.
+        Default is `False`.
+
     Return
     ------
     radiance : ndarray
-        The black body radiance [energy/time/area/length/sr] = [W/m2/m/sr].
+        The black body radiance [energy/time/area/length/sr] = [W/m2/um/sr] or
+        normalized version of it [1/um].
     """
-    wl = to_val(wavelen, u.m)
+    wl = to_val(wlen, u.um)*1.e-6
     temp = to_val(temperature, u.K)
     coeff = 2*HH*CC**2 / wl**5
     denom = np.exp(HH*CC/(wl*KB*temp)) - 1
     radiance = coeff / denom
-    return radiance
-
-
-def b_lambda(wavelen, temperature):
-    """ Calcualtes the small b function [1/wavelen].
-
-    Parameters
-    ----------
-    wavelen : float or `~Quantity`, `~numpy.ndarray` of such.
-        The wavelengths. In meter unit if not Quantity.
-
-    temperature : float or `~Quantity`
-        The temperature. In Kelvin unit if not Quantity. For specific purpose,
-        you can give it in an ndarray format, but not recommended.
-
-    Return
-    ------
-    radiance : ndarray
-        The small b function [1/wavelen].
-    """
-    wl = to_val(wavelen, u.m)
-    temp = to_val(temperature, u.K)
-    norm = SIGMA_SB * temp**4
-    norm_radiance = np.pi * B_lambda(wavelen=wl, temperature=temp) / norm
-    return norm_radiance
+    if normalized:
+        return radiance * PI / (SIGMA_SB*temp**4) * 1.e+6  # [1/um]
+    return radiance * 1.e-6  # [W/m2/**um**/sr]
 
 
 def flam2jy(flam, wlen):
@@ -64,7 +50,7 @@ def flam2jy(flam, wlen):
         The flux density in [W/m2/um].
 
     wlen : array-like
-        The wavelength in um.
+        The wlength in um.
 
     1Jy = 10-26 W⋅m-2⋅Hz-1
     """
@@ -79,7 +65,7 @@ def jy2flam(jy, wlen):
         The flux density in [Jy].
 
     wlen : array-like
-        The wavelength in um.
+        The wlength in um.
 
     1Jy = 10-26 W⋅m-2⋅Hz-1
     """
@@ -94,7 +80,7 @@ def flam2ab(flam, wlen, reference_jy=3631):
         The flux density in [W/m2/um].
 
     wlen : array-like
-        The wavelength in um.
+        The wlength in um.
     """
     return -2.5*np.log10(flam2jy(flam, wlen)/reference_jy)
 
@@ -105,8 +91,8 @@ def planck_avg(wlen, val, temp, use_sb=True):
     Parameters
     ----------
     wlen, val : array-like
-        The wavelength and value of a thing (frequently used example:
-        emissivity or reflectance over wavelength) to be averaged.
+        The wlength (um if float) and value of a thing (frequently used
+        example: emissivity or reflectance over wlength) to be averaged.
 
     temp : float or `~Quantity`
         The temperature of the Planck function. In Kelvin unit if not Quantity. For specific purpose,
@@ -126,6 +112,9 @@ def planck_avg(wlen, val, temp, use_sb=True):
         \frac{\int B_\lambda(T) val(\lambda) d\lambda}{\int B_\lambda(T) d\lambda}
     """
     temp = to_val(temp, u.K)
+    wlen = to_val(wlen, u.um)
+    if isinstance(val, u.Quantity):
+        val = val.value
     numer = trapezoid(B_lambda(wlen, temp)*val, wlen)
     if use_sb:
         denom = SIGMA_SB*temp**4/PI
