@@ -3,15 +3,15 @@ from astropy import units as u
 
 __all__ = ["PI", "D2R", "R2D", "AU", "MICRON", "TIU", "HCU", "MDU", "TCU", "FLAMU",
            "NOUNIT",
-           "GG"      , "GG_U"    , "GG_Q"     ,
-           "HH"      , "HH_U"    , "HH_Q"     ,
-           "KB"      , "KB_U"    , "KB_Q"     ,
-           "SIGMA_SB", "SIGMA_SB", "SIGMA_SB" ,
-           "CC"      , "CC"      , "CC"       ,
-           "R_SUN"   , "R_SUN"   , "R_SUN"    ,
-           "T_SUN"   , "T_SUN"   , "T_SUN"    ,
-           "L_SUN"   , "L_SUN"   , "L_SUN",
-           "C_F_SUN" , "C_F_THER"
+           "GG", "GG_U", "GG_Q",
+           "HH", "HH_U", "HH_Q",
+           "KB", "KB_U", "KB_Q",
+           "CC", "CC_U", "CC_Q",
+           "SIGMA_SB", "SIGMA_SB", "SIGMA_SB",
+           "R_SUN", "R_SUN", "R_SUN",
+           "T_SUN", "T_SUN", "T_SUN",
+           "L_SUN", "L_SUN", "L_SUN",
+           "C_F_SUN", "C_F_THER"
            ]
 
 # define constants (All in SI unit!!!)
