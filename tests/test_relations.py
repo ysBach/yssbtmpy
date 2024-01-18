@@ -10,12 +10,12 @@ from yssbtmpy.relations import (AG2p, DH2p, G2q, T_eqm, pA2G, pD2H, pG2A, pH2D,
                                 q2G, solve_Gq, solve_pAG, solve_pDH,
                                 solve_temp_eqm, solve_thermal_par)
 
-Qo = dict(return_quantity=True)
-Qx = dict(return_quantity=False)
-CoQo = dict(classical=True, return_quantity=True)
-CoQx = dict(classical=True, return_quantity=False)
-CxQo = dict(classical=False, return_quantity=True)
-CxQx = dict(classical=False, return_quantity=False)
+Qo = dict(to_value=False)
+Qx = dict(to_value=True)
+CoQo = dict(classical=True, to_value=False)
+CoQx = dict(classical=True, to_value=True)
+CxQo = dict(classical=False, to_value=False)
+CxQx = dict(classical=False, to_value=True)
 
 _test_p = [0.01, 0.1, 0.2, 1.0]  # NOUNIT
 _test_G = [0.01, 0.15, 1.0]  # NOUNIT
