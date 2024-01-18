@@ -1,11 +1,12 @@
 import numpy as np
+from astropy import units as u
 from numba import njit
 from scipy.interpolate import CloughTocher2DInterpolator
+
 from ..constants import D2R
-from ..util import change_to_quantity
+from ..util import to_val
 
-
-__all__ = ["hapke_k_theta_phase", "iau_hg_linear", "iau_hg"]
+__all__ = ["hapke_k_theta_phase", "iau_hg_model", "iau_hg"]
 
 _HAPKE_K_VALS = np.array([
     [1.00, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000],
@@ -55,22 +56,44 @@ def _hgphi12_nb(alpha__deg):
     return (w*phi1_s + (1-w)*phi1_l, w*phi2_s + (1-w)*phi2_l)
 
 
-def iau_hg_linear(alphas, gpar=0.15):
+def iau_hg_model(alphas, gpar=0.15):
     """The IAU HG phase function model in intensity (1 at alpha=0)
     """
-    alphas = change_to_quantity(alphas, 'deg', to_value=True)
+    alphas = to_val(alphas, u.deg)
     hgphi1, hgphi2 = _hgphi12_nb(np.array(alphas))
-    return (1-gpar)*hgphi1 + gpar*hgphi2
+    return (1 - gpar)*hgphi1 + gpar*hgphi2
 
 
-def iau_hg(alphas, hmag=10, gpar=0.15, r_hel=1., r_obs=1.):
-    """The IAU HG phase function model in magnitude
+def iau_hg(alphas, hmag=0, gpar=0.15, r_hel=1., r_obs=1., return_mag=True):
+    """The IAU HG phase function, w.r.t. the absolute magnitude geometry
+
+    Parameters
+    ----------
+
+    alphas : array-like
+        The phase angles (in degree if not `~Quantity`.
+
+    hmag : float
+        The absolute magnitude of the object. Ignored if `return_mag` is
+        `False`.
+        Default is ``0``.
+
+    gpar : float
+        The slope parameter of the phase function in IAU HG model.
+        Default is ``0.15``.
+
+    r_hel, r_obs : float or `~Quantity`
+        The heliocentric and observer-centric distance. In au if not Quantity.
+
+    return_mag : bool
+        Whether to return the magnitude. If `True`, the magnitude (`hmag` minus
+        effects of phase function and distances) is returned. If `False`,
+        `hmag` is ignored and the intensity ratio (intensity at the `alphas`
+        divided by the intensity at alpha=0) is returned.
+        Default is ``True``.
+
     """
-    inten = iau_hg_linear(alphas, gpar)
-    return np.array(hmag - 2.5*np.log10(inten) + 5*np.log10(r_hel*r_obs))
-
-
-# def hapke_rough_corr_factor(thetabar=0):
-#     """
-#     thetabar: degr
-#     """
+    inten = iau_hg_model(alphas, gpar)
+    if return_mag:
+        return np.atleast_1d(hmag - 2.5*np.log10(inten) + 5*np.log10(r_hel*r_obs))
+    return np.atleast_1d(inten/(r_hel*r_obs)**2)

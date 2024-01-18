@@ -7,11 +7,10 @@ longitude phi = 0 at midnight, 180˚ at midday.
 """
 import numpy as np
 from astropy import units as u
-import numba as nb
 
 from .constants import C_F_SUN, C_F_THER, D2R, GG, PI, T_SUN
 from .relations import solve_rmrho
-from .util import cart2sph, to_quantity, sph2cart
+from .util import cart2sph, sph2cart, to_quantity, to_val
 
 __all__ = ["MovingParticle"]
 
@@ -36,6 +35,7 @@ def leapfrog_kdk(posvel, dt, acc_func, acc_start=None):
     pos_new = pos + dt*vel_tmp
     vel_new = vel_tmp + dt/2*acc_func(pos_new, append=True)
     return pos_new, vel_new
+
 
 def sin_deg(x):
     return np.sin(x*D2R)
@@ -130,7 +130,6 @@ class MovingParticle(SmallBodyForceMixin):
         self._C_FSUN_r_over_rhel_sq = C_F_SUN*(self.radius_um/self.r_hel_au)**2
         self._C_FTHR_emis_rsq = C_F_THER*self.smallbody.emissivity.value*self.radius_um**2
 
-
     def set_func_Qprbar(self, func_Qprbar, func_Qprbar_sun=None):
         """
         Parameters
@@ -169,10 +168,10 @@ class MovingParticle(SmallBodyForceMixin):
             at sunrise) of the initial position.
         """
         height_init = to_quantity(height, u.m)
-        height_init_m = (height_init.to(u.m)).value
+        height_init_m = height_init.value
         r = self.r_sb_m + height_init_m
-        th = to_quantity(colat, u.deg, to_value=True)
-        ph = to_quantity(lon, u.deg, to_value=True)
+        th = to_val(colat, u.deg)
+        ph = to_val(lon, u.deg)
 
         # Only one-time usage so use this slow conversion function:
         self.trace_pos_xyz = [sph2cart(theta=th, phi=ph, r=r, degree=True)]
@@ -180,7 +179,7 @@ class MovingParticle(SmallBodyForceMixin):
         self.trace_pos_sph = [np.array([r, th, ph])]
         if vec_vel_init is None:
             vec_vel_init = (self.vel_eq_mps*sin_deg(th)
-                            *np.array([-sin_deg(ph), cos_deg(ph), 0]))
+                            * np.array([-sin_deg(ph), cos_deg(ph), 0]))
         self.trace_vel_xyz = [np.array(vec_vel_init)]
         self.trace_rvec = [np.array(self.trace_pos_xyz[0])/r]
         self.trace_height = [height_init_m]
@@ -366,5 +365,3 @@ class MovingParticle(SmallBodyForceMixin):
             self.trace_pos_xyz[:, 1]/_trace_r,
             self.trace_pos_xyz[:, 2]/_trace_r
         ])
-
-
