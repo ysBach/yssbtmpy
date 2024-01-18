@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from astropy import units as u
 from astropy.units import Quantity
 from .constants import SIGMA_SB_Q, NOUNIT, PI, TIU, HCU, MDU, TCU
-from .util import F_OR_Q_OR_ARR, F_OR_Q, change_to_quantity
+from .util import F_OR_Q_OR_ARR, F_OR_Q, to_quantity
 from scipy.optimize import root_scalar
 import numpy as np
 
@@ -330,8 +330,8 @@ class Material:
         return self.emissivity_fun(temp)
 
     def k_ti(self, ti, temp, porosity):
-        ti = change_to_quantity(ti, TIU, to_value=False)
-        temp = change_to_quantity(temp, u.K, to_value=False)
+        ti = to_quantity(ti, TIU, to_value=False)
+        temp = to_quantity(temp, u.K, to_value=False)
         return (ti**2/(self.rho_grain_fun(temp)*(1-porosity)*self.cs_fun(temp))).to(TCU)
 
     def k_eff(
@@ -340,8 +340,8 @@ class Material:
         temp: F_OR_Q_OR_ARR,
         porosity: F_OR_Q_OR_ARR = 0
     ) -> F_OR_Q_OR_ARR:
-        r_grain = change_to_quantity(r_grain, u.um, to_value=False)
-        temp = change_to_quantity(temp, u.K, to_value=False)
+        r_grain = to_quantity(r_grain, u.um, to_value=False)
+        temp = to_quantity(temp, u.K, to_value=False)
         r_c = self.jkr_contact(r_grain=r_grain, temp=temp)
         k_grain = self.k_grain(temp)[0]
         magic_factor = self.f1*np.exp(self.f2*(1 - porosity))*self.chi
@@ -486,10 +486,10 @@ def jkr_contact(
     r_contact : Quantity
         The contact radius of the sphere in micrometer.
     """
-    r = change_to_quantity(r, u.um, to_value=False)
-    temp = change_to_quantity(temp, u.K, to_value=False)
-    prat = change_to_quantity(prat, NOUNIT, to_value=False)
-    ymod = change_to_quantity(ymod, u.GPa, to_value=False)
+    r = to_quantity(r, u.um, to_value=False)
+    temp = to_quantity(temp, u.K, to_value=False)
+    prat = to_quantity(prat, NOUNIT, to_value=False)
+    ymod = to_quantity(ymod, u.GPa, to_value=False)
     spsurferg = power_fun(temp, gamma_coeffs)*u.J/u.m**2
     # print(f"{spsurferg=}")
     return (((9*PI/4)*((1-prat**2)/ymod)*spsurferg*r**2)**(1/3)).to(u.um)
@@ -540,9 +540,9 @@ def k_solid_gb13(
         From GB13, f1 = 0.0518 +- 0.0345, f2 = 5.26 +- 0.94, and chi = 0.41 +-
         0.02 (stat) +- 0.10 (syst).
     """
-    r_grain = change_to_quantity(r_grain, u.um, to_value=False)
+    r_grain = to_quantity(r_grain, u.um, to_value=False)
     r_c = jkr_contact(r=r_grain, temp=temp, prat=prat, ymod=ymod, gamma_coeffs=gamma_coeffs)
-    cond_grain = change_to_quantity(cond_grain, u.W/u.m/u.K, to_value=False)
+    cond_grain = to_quantity(cond_grain, u.W/u.m/u.K, to_value=False)
     magic_factor = f1*np.exp(f2*(1 - porosity))*chi
     return (magic_factor*cond_grain*(r_c/r_grain)).to(u.W/u.m/u.K)
 
@@ -575,8 +575,8 @@ def k_rad_gb13(
         Fig. 12), e1 = 1.34 +- 0.01. Interpolation only near porosity = 0.65 to
         0.85 (See Skorov et al. 2011).
     """
-    r_grain = change_to_quantity(r_grain, u.um, to_value=False)
-    temp = change_to_quantity(temp, u.K, to_value=False)
+    r_grain = to_quantity(r_grain, u.um, to_value=False)
+    temp = to_quantity(temp, u.K, to_value=False)
     k2 = 8*emissivity*SIGMA_SB_Q*e1*(porosity)/(1 - porosity)*r_grain
     return (k2*temp**3).to(u.W/u.m/u.K)
 

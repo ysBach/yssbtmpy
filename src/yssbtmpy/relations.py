@@ -4,7 +4,7 @@ import numpy as np
 from astropy import units as u
 
 from .constants import NOUNIT, PI, S1AU, SIGMA_SB, TIU
-from .util import F_OR_ARR, F_OR_Q, F_OR_Q_OR_ARR, change_to_quantity
+from .util import F_OR_ARR, F_OR_Q, F_OR_Q_OR_ARR, to_quantity
 
 # TODO: maybe make it to accept terminal command lines.
 
@@ -27,7 +27,7 @@ def _count_not_None(*args) -> int:
 def _setup_pars(pardict: dict, unitdict: dict, to_value: bool) -> dict:
     newpars = {}
     for k, v in pardict.items():
-        newpar = change_to_quantity(v, desired=unitdict[k], to_value=to_value)
+        newpar = to_quantity(v, desired=unitdict[k], to_value=to_value)
         newpars[k] = newpar
     return newpars
 
@@ -327,7 +327,7 @@ def solve_pDH(
     p = ps["p_vis"]
     d = ps["diam_eff"]
     h = ps["hmag_vis"]
-    d0 = change_to_quantity(d0, desired=u.km, to_value=True)
+    d0 = to_quantity(d0, desired=u.km, to_value=True)
 
     # 3. Solve
     if p is None:
@@ -729,11 +729,11 @@ def Thetapar(
         raise ValueError(
             "One and only one of [rot_omega, rot_period] must be given.")
 
-    rot_omega = change_to_quantity(rot_omega, desired=1/u.s, to_value=True)
-    ti__tiu = change_to_quantity(ti, desired=TIU, to_value=True)
-    emissivity = change_to_quantity(emissivity, desired=NOUNIT, to_value=True)
-    rot_period__h = change_to_quantity(rot_period, desired=u.s, to_value=True)
-    temp_eqm__k = change_to_quantity(temp_eqm, desired=u.K, to_value=True)
+    rot_omega = to_quantity(rot_omega, desired=1/u.s, to_value=True)
+    ti__tiu = to_quantity(ti, desired=TIU, to_value=True)
+    emissivity = to_quantity(emissivity, desired=NOUNIT, to_value=True)
+    rot_period__h = to_quantity(rot_period, desired=u.s, to_value=True)
+    temp_eqm__k = to_quantity(temp_eqm, desired=u.K, to_value=True)
 
     if rot_omega is None:
         rot_omega = 2*PI/(rot_period)

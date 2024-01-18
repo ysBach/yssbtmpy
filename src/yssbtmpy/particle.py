@@ -11,7 +11,7 @@ import numba as nb
 
 from .constants import C_F_SUN, C_F_THER, D2R, GG, PI, T_SUN
 from .relations import solve_rmrho
-from .util import cart2sph, change_to_quantity, sph2cart
+from .util import cart2sph, to_quantity, sph2cart
 
 __all__ = ["MovingParticle"]
 
@@ -168,11 +168,11 @@ class MovingParticle(SmallBodyForceMixin):
             longitude (``phi`` of the notation, which is 0 at midnight, 90 deg
             at sunrise) of the initial position.
         """
-        height_init = change_to_quantity(height, u.m, to_value=False)
+        height_init = to_quantity(height, u.m, to_value=False)
         height_init_m = (height_init.to(u.m)).value
         r = self.r_sb_m + height_init_m
-        th = change_to_quantity(colat, u.deg, to_value=True)
-        ph = change_to_quantity(lon, u.deg, to_value=True)
+        th = to_quantity(colat, u.deg, to_value=True)
+        ph = to_quantity(lon, u.deg, to_value=True)
 
         # Only one-time usage so use this slow conversion function:
         self.trace_pos_xyz = [sph2cart(theta=th, phi=ph, r=r, degree=True)]
@@ -295,13 +295,13 @@ class MovingParticle(SmallBodyForceMixin):
         check_min = False
         if min_height is not None:
             check_min = True
-            self.min_height = change_to_quantity(min_height, u.m, to_value=False)
+            self.min_height = to_quantity(min_height, u.m, to_value=False)
             self.min_height_m = (self.min_height.to(u.m)).value
 
         check_max = False
         if max_height is not None:
             check_max = True
-            self.max_height = change_to_quantity(max_height, u.m, to_value=False)
+            self.max_height = to_quantity(max_height, u.m, to_value=False)
             self.max_height_m = (self.max_height.to(u.m)).value
 
         self.halt_code = None
