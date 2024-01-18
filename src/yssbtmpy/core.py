@@ -9,15 +9,16 @@ from astropy.time import Time
 from astroquery.jplhorizons import Horizons
 from astroquery.jplsbdb import SBDB
 from scipy.interpolate import (RectBivariateSpline, RegularGridInterpolator,
-                               interp1d)
+                               UnivariateSpline, interp1d)
 
-from .constants import GG_Q, NOUNIT, PI, R2D, TIU
+from .constants import AU, GG_Q, NOUNIT, PI, R2D, TIU
 from .relations import (p2w, solve_Gq, solve_pAG, solve_pDH, solve_rmrho,
                         solve_temp_eqm, solve_thermal_par)
-from .util import (F_OR_Q, F_OR_Q_OR_ARR, mat_bf2ss, add_hdr, calc_aspect_ang,
+from .scat.phase import iau_hg_model
+from .scat.solar import SOLAR_SPEC
+from .util import (F_OR_ARR, F_OR_Q, F_OR_Q_OR_ARR, add_hdr, calc_aspect_ang,
                    calc_flux_tpm, calc_mu_vals, calc_uarr_tpm, calc_varr_orbit,
-                   change_to_quantity, lonlat2cart)
-
+                   lonlat2cart, mat_bf2ss, to_quantity, to_val)
 
 __all__ = ["SmallBody", "OrbitingSmallBody"]
 
@@ -44,17 +45,15 @@ class SmallBodyMixin():
             # r_obs_hat = lonlat2cart(self.obs_ecl_helio.lon,
             #                         self.obs_ecl_helio.lat)
 
-            self.aspect_ang = change_to_quantity(
+            self.aspect_ang = to_quantity(
                 np.rad2deg(np.arccos(np.inner(-1*r_hel_hat, self.spin_vec))),
-                u.deg,
-                to_value=False
+                u.deg
             )
             # aux_cos_sun = np.inner(r_hel_hat, self.spin_vec)
             # self.aspect_ang = (180-np.rad2deg(np.arccos(aux_cos_sun)))*u.deg
-            self.aspect_ang_obs = change_to_quantity(
+            self.aspect_ang_obs = to_quantity(
                 np.rad2deg(np.arccos(np.inner(-1*r_obs_hat, self.spin_vec))),
-                u.deg,
-                to_value=False
+                u.deg
             )
             # aux_cos_obs = np.inner(r_obs_hat, self.spin_vec)
             # aspect_ang_obs = (180-np.rad2deg(np.arccos(aux_cos_obs)))*u.deg
@@ -88,9 +87,9 @@ class SmallBodyMixin():
         rot_period : float, Quantity
             The rotational period of the object (in seconds if `float`)
         """
-        self.spin_ecl_lon = change_to_quantity(spin_ecl_lon, u.deg, to_value=False)
-        self.spin_ecl_lat = change_to_quantity(spin_ecl_lat, u.deg, to_value=False)
-        self.rot_period = change_to_quantity(rot_period, u.s, to_value=False)
+        self.spin_ecl_lon = to_quantity(spin_ecl_lon, u.deg)
+        self.spin_ecl_lat = to_quantity(spin_ecl_lat, u.deg)
+        self.rot_period = to_quantity(rot_period, u.s)
 
         try:
             self.spin_vec = lonlat2cart(
@@ -228,9 +227,9 @@ class SmallBodyMixin():
         angle. The spin period is absorbed into thermal paramter. Diameter does
         not affect the temperature, unless we are using the p-D-H relation.
         """
-        self.thermal_par = change_to_quantity(thermal_par, NOUNIT, to_value=False)
-        self.aspect_ang = change_to_quantity(aspect_ang, u.deg, to_value=False)
-        self.temp_eqm = change_to_quantity(temp_eqm, u.K, to_value=False)
+        self.thermal_par = to_quantity(thermal_par, NOUNIT)
+        self.aspect_ang = to_quantity(aspect_ang, u.deg)
+        self.temp_eqm = to_quantity(temp_eqm, u.K)
         self.temp_eqm__K = self.temp_eqm.to_value(u.K)
 
         # set fictitious ephemerides
@@ -269,7 +268,7 @@ class SmallBodyConstTPM():
                              eta_beam=eta_beam,
                              r_hel=self.r_hel,
                              emissivity=emissivity,
-                             return_quantity=True)
+                             to_value=False)
         self.emissivity = ps1["emissivity"]
         self.eta_beam = ps1["eta_beam"]
         self.temp_eqm = ps1["temp_eqm"]
@@ -281,7 +280,7 @@ class SmallBodyConstTPM():
                                 rot_period=self.rot_period,
                                 temp_eqm=self.temp_eqm,
                                 emissivity=emissivity,
-                                return_quantity=True)
+                                to_value=False)
         self.thermal_par = ps2["thermal_par"]
         self.ti = ps2["ti"]
 
@@ -311,7 +310,7 @@ class SmallBodyConstTPM():
             self.dlat = PI/self.nlat
         else:
             self.lats = np.sort(np.unique(
-                np.atleast_1d(change_to_quantity(lats, u.deg, to_value=False))
+                np.atleast_1d(to_quantity(lats, u.deg))
             ))[::-1]  # sort in descending order so that colatitude is increasing order
             self.nlat = len(self.lats)
             self.dlat = None
@@ -443,8 +442,10 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
         self.tempunit = None
 
         self.mu_obss = None
-        self.wlen = None
-        self.flux = None
+        self.wlen_ther = None
+        self.wlen_refl = None
+        self.flux_ther = None
+        self.flux_refl = None
 
     def set_ecl(self, r_hel, hel_ecl_lon, hel_ecl_lat,
                 r_obs, obs_ecl_lon, obs_ecl_lat, alpha,
@@ -477,14 +478,14 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
         equinox of ``hEcl-Lon`` and ``hEcl-Lat`` is calculated (as of 2019, it
         is J2000.0, so ``transform_equinox="J2000.0"``).
         """
-        self.r_hel = change_to_quantity(r_hel, u.au, to_value=False)
-        self.r_obs = change_to_quantity(r_obs, u.au, to_value=False)
-        self.hel_ecl_lon = change_to_quantity(hel_ecl_lon, u.deg, to_value=False)
-        self.hel_ecl_lat = change_to_quantity(hel_ecl_lat, u.deg, to_value=False)
+        self.r_hel = to_quantity(r_hel, u.au)
+        self.r_obs = to_quantity(r_obs, u.au)
+        self.hel_ecl_lon = to_quantity(hel_ecl_lon, u.deg)
+        self.hel_ecl_lat = to_quantity(hel_ecl_lat, u.deg)
         # The obs_ecl values from HORIZONS are observer-centered lambda, beta values.
-        self.obs_ecl_lon = change_to_quantity(obs_ecl_lon, u.deg, to_value=False)
-        self.obs_ecl_lat = change_to_quantity(obs_ecl_lat, u.deg, to_value=False)
-        self.phase_ang = change_to_quantity(alpha, u.deg, to_value=False)
+        self.obs_ecl_lon = to_quantity(obs_ecl_lon, u.deg)
+        self.obs_ecl_lat = to_quantity(obs_ecl_lat, u.deg)
+        self.phase_ang = to_quantity(alpha, u.deg)
 
         # helecl_ref = HeliocentricMeanEcliptic(equinox=transform_equinox)
         # obsecl_geo = SkyCoord(
@@ -543,7 +544,7 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
         self.mu_obss = calc_mu_vals(
             r_vec=-1*self.r_obs_vec,
             spin_vec=self.spin_vec,
-            phases=self.phases - change_to_quantity(self.phase_ang, u.rad),
+            phases=self.phases - to_quantity(self.phase_ang, u.rad),
             colats=self.colats,
             full=False
         )
@@ -682,7 +683,7 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             else:
                 self.tempsurf = u_arr[:, :, 0]
 
-    def calc_flux(self, wlen: float):
+    def calc_flux_ther(self, wlen: float):
         """ Calculates flux in W/m^2/um
         wlen : float, Quantity
             The wavelength in microns (if `float`).
@@ -690,27 +691,74 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
         if self.mu_obss is None:
             self.set_muobss()
 
-        self.wlen = change_to_quantity(wlen, u.um, to_value=False)
-        if self.wlen.ndim != 1:
-            raise ValueError(f"wlen must be 1-D (now it's {self.wlen.ndim}-D).")
-        wlen__m = self.wlen.to_value(u.m)
+        self.wlen_ther = to_quantity(wlen, u.um)
+        wlen__m = self.wlen_ther.to_value(u.m)
 
         if self.tempsurf is None:
             raise ValueError("tempsurf is None. Please run .calc_temp() first.")
 
-        fluxarr = np.zeros(self.wlen.size, dtype=float)
+        fluxarr = np.zeros(self.wlen_ther.size, dtype=float)
         calc_flux_tpm(
             fluxarr,
             wlen__m=wlen__m, tempsurf=self.tempsurf, mu_obss=self.mu_obss,
-            colats=change_to_quantity(self.colats, u.rad, to_value=True),
+            colats=to_val(self.colats, u.rad),
             dlon=self.dlon, dlat=self.dlat
         )
 
-        self.flux = (fluxarr
-                     * self.emissivity
-                     * (change_to_quantity(self.radi_eff, u.m, to_value=True)**2)
-                     / (change_to_quantity(self.r_obs, u.m, to_value=True)**2)
-                     / 1.e+6)  # W/m^2/**um**
+        self.flux_ther = (fluxarr * (u.W/u.m**2/u.um)
+                          * self.emissivity
+                          * (to_val(self.radi_eff, u.m)**2)
+                          / (to_val(self.r_obs, u.m)**2)
+                          / 1.e+6)  # W/m^2/**um**
+
+    def calc_flux_refl(self, wlen_min=0, wlen_max=1000, refl: F_OR_ARR = None):
+        """
+        wlen_min, wlen_max : float, Quantity, optional.
+            The wavelength in microns (if `float`) to be used. The calculation
+            will be done for wavelengths of ``wlen_min < tm.SOLAR_SPEC[:, 0] <
+            wlen_max``. Default is 0 and 1000.
+
+        refl : float, Quantity, optional.
+            The reflectance. If not given, it is set to 1 (complete reflection).
+
+        Notes
+        -----
+        At the moment, this functionality is very limited.
+
+        >>> _r = YOUR_REFLECTANCE
+        >>> _w = YOUR_WAVELENGTH  # in microns, same size as _r
+        >>> refl = UnivariateSpline(_w, _l, k=3, s=0, ext="const")(tm.SOLAR_SPEC[:, 0])
+        """
+        wlen_min = to_val(wlen_min, u.um)
+        wlen_max = to_val(wlen_max, u.um)
+        wlen_mask = (SOLAR_SPEC[:, 0] >= wlen_min) & (SOLAR_SPEC[:, 0] <= wlen_max)
+        self.wlen_refl = SOLAR_SPEC[wlen_mask, 0]*u.um
+        wlen__um = self.wlen_refl.value
+
+        if refl is None:
+            refl = np.ones(wlen__um.size)
+        else:
+            refl = np.atleast_1d(refl)
+            # if (refl.size != wlen__um.size):
+            #     raise ValueError(
+            #         "At the moment, `refl` must be given for all the wavelengths of "
+            #         + f"`tm.SOLAR_SPEC`, which is length {SOLAR_SPEC.shape[0]}."
+            #         + f" Now {refl.size=}. Fix it by, e.g.,\n"
+            #         + " >>> _r = YOUR_REFLECTANCE\n"
+            #         + " >>> _w = YOUR_WAVELENGTH  # in microns, same size as _r\n"
+            #         + " >>> refl = UnivariateSpline(_w, _l, k=3, s=0, ext='const')"
+            #         + "(tm.SOLAR_SPEC[:, 0])"
+            #     )
+
+        phase_factor = iau_hg_model(alphas=self.phase_ang.to_value(u.deg),
+                                    gpar=self.slope_par.value)
+        self.flux_refl = (SOLAR_SPEC[wlen_mask, 1] * (u.W/u.m**2/u.um)
+                          * refl*self.p_vis
+                          * (self.radi_eff.to_value(u.m))**2
+                          / ((self.r_hel.to_value(u.au))**2*(self.r_obs.to_value(u.m))**2)
+                          * phase_factor
+                          )
+        # SOLAR_SPEC already is for r_hel = 1au, so for r_hel, it should use u.au.
 
     def get_temp_1d(self, colat__deg, lon__deg):
         """ Return 1d array of temperature.
@@ -1053,26 +1101,26 @@ class OrbitingSmallBody:
     def __post_init__(self):
         # === Initial settings
         # ---  Spin related
-        self.spin_ecl_lon = change_to_quantity(self.spin_ecl_lon, u.deg, to_value=False)
-        self.spin_ecl_lat = change_to_quantity(self.spin_ecl_lat, u.deg, to_value=False)
+        self.spin_ecl_lon = to_quantity(self.spin_ecl_lon, u.deg)
+        self.spin_ecl_lat = to_quantity(self.spin_ecl_lat, u.deg)
         self.spin_vec = lonlat2cart(lon=self.spin_ecl_lon, lat=self.spin_ecl_lat, r=1)
 
         # ---  solve albedo
         _pag = solve_pAG(
             p_vis=self.p_vis, a_bond=self.a_bond, slope_par=self.slope_par,
-            classical=self.classical, return_quantity=True)
+            classical=self.classical, to_value=False)
         self.p_vis = _pag["p_vis"]
         self.a_bond = _pag["a_bond"]
         self.slope_par = _pag["slope_par"]
 
         # ---  solve scaling (characteristic) temperature
-        # self.sma = change_to_quantity(self.obj.sbdb["orbit"]["a"], u.au)
+        # self.sma = to_quantity(self.obj.sbdb["orbit"]["a"], u.au)
         # TODO: will the scaling using temp_eqm at 1au guarantee the numerical
         # stability at, e.g., very small or very large r_hels (when T/T_1au =
         # 10 // 0.1 level)? I think so, but... 2023-01-15 17:24:33 (KST: GMT+09:00) ysBach
         _teq = solve_temp_eqm(
             temp_eqm=self.temp_1au, a_bond=self.a_bond, eta_beam=self.eta_beam,
-            r_hel=1, emissivity=self.emissivity, return_quantity=True
+            r_hel=1, emissivity=self.emissivity, to_value=False
         )
         self.temp_1au = _teq["temp_eqm"]  # NOT temp_eqm, but temp_1au
         self.eta_beam = _teq["eta_beam"]
@@ -1085,7 +1133,7 @@ class OrbitingSmallBody:
         # ---  solve thermal_par
         _thp = solve_thermal_par(
             thermal_par=self.thermal_par_1au, ti=self.ti, rot_period=self.rot_period,
-            temp_eqm=self.temp_1au, emissivity=self.emissivity, return_quantity=True
+            temp_eqm=self.temp_1au, emissivity=self.emissivity, to_value=False
         )
         self.thermal_par_1au = _thp["thermal_par"]
         self.ti = _thp["ti"]
@@ -1101,9 +1149,9 @@ class OrbitingSmallBody:
 
         # ---  set miscellanea
         self.rot_omega = p2w(self.rot_period)
-        self.lonlats = change_to_quantity(np.atleast_2d(self.lonlats), u.deg)
+        self.lonlats = to_quantity(np.atleast_2d(self.lonlats), u.deg)
         self.npoints = self.lonlats.shape[0]
-        self.deps = change_to_quantity(np.atleast_1d(self.deps), NOUNIT).value
+        self.deps = to_quantity(np.atleast_1d(self.deps), NOUNIT).value
         self.n_per_rot = int(self.n_per_rot)
 
         # See MuellerM PhDT 2007 Sect 3.3.2:
@@ -1386,9 +1434,8 @@ class OrbitingSmallBody:
         #     self.varrs_aph.append(_spl(self.deps)/self.temp_1au.value)
         # self.varrs_aph = np.array(self.varrs_aph)
 
-        mat_bf2ss = np.array(
-            [mat_bf2ss(colat__deg=90 - lat)
-             for lat in change_to_quantity(self.lonlats[:, 1], u.deg, to_value=True)]
+        _mat_bf2ss = np.array(
+            [mat_bf2ss(colat__deg=90 - lat) for lat in to_val(self.lonlats[:, 1], u.deg)]
         )
         self.dt_1 = self.rot_period.to_value(u.day)/self.n_per_rot
         calc_jds = np.arange(self.eph_jds[0], self.eph_jds[-1] + self.dt_1, self.dt_1)
@@ -1413,7 +1460,7 @@ class OrbitingSmallBody:
                 varrs_init=_varrs,
                 phi0s=_phi0,
                 spin_vec_norm=self.spin_vec,
-                mat_bf2ss=mat_bf2ss,
+                mat_bf2ss=_mat_bf2ss,
                 r_hel_vecs=r_hel_vecs,
                 r_hels=np.linalg.norm(r_hel_vecs, axis=1),
                 true_anoms__deg=self.true_anom_aph(calc_jds_i, to_value=True),
