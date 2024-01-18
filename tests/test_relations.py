@@ -1,14 +1,13 @@
 from itertools import product
 
 import numpy as np
-import pytest
 from astropy import units as u
 from numpy.testing import assert_allclose as allclose
 
-from yssbtmpy.constants import NOUNIT, PI, S1AU, SIGMA_SB, TIU
+from yssbtmpy.constants import NOUNIT, S1AU, SIGMA_SB
 from yssbtmpy.relations import (AG2p, DH2p, G2q, T_eqm, pA2G, pD2H, pG2A, pH2D,
                                 q2G, solve_Gq, solve_pAG, solve_pDH,
-                                solve_temp_eqm, solve_thermal_par)
+                                solve_temp_eqm)
 
 Qo = dict(to_value=False)
 Qx = dict(to_value=True)
@@ -28,8 +27,8 @@ _test_eps = [0.1, 0.9, 1.0]  # NOUNIT
 _test_beam = [0.7, 1.0, 3.0]  # NOUNIT
 _test_rh = [0.1, 1.0, 3.0]  # u.au
 _test_T = [100, 300, 1000]  # u.K
-_test_P = [0.1, 1, 10]  # u.h
-_test_TI = [1, 100, 1000]  # TIU
+# _test_P = [0.1, 1, 10]  # u.h
+# _test_TI = [1, 100, 1000]  # TIU
 
 
 def allclose_Q(a, b, rtol=1.e-5, atol=None, **kwargs):
