@@ -173,7 +173,7 @@ def add_hdr(
         desired_unit: str | u.Unit = '',
         comment: str = None
 ):
-    _val = to_quantity(val, desired=desired_unit, to_value=True)
+    _val = to_val(val, desired=desired_unit)
     header[key] = (_val, comment)
     return header
 
@@ -585,8 +585,8 @@ def calc_mu_vals(
     will give the components of vector ``a`` in surface system, where ``m`` is
     the result of this function.
     """
-    colats__deg = to_quantity(colats, u.deg, to_value=True)
-    phases__rad = to_quantity(phases, u.rad, to_value=True)
+    colats__deg = to_val(colats, u.deg)
+    phases__rad = to_val(phases, u.rad)
     r_vec_norm = r_vec/np.linalg.norm(r_vec)
     spin_vec_norm = spin_vec/np.linalg.norm(spin_vec)
 
@@ -722,8 +722,6 @@ def calc_varr_orbit(
                 phi__rad=phi__rad,
                 mat_bf2ss=mat
             )
-            # if np.isnan(mu) or mu > 1:
-            #     print("mu is strange.", iloc, i, mu, r_hel_vecs[i, :]/r_hels[i], spin_vec_norm, phi__rad, mat)
             update_varr(
                 varr_old=varr_old,
                 varr_new=varr_new,
