@@ -11,7 +11,7 @@ from astroquery.jplsbdb import SBDB
 from scipy.interpolate import (RectBivariateSpline, RegularGridInterpolator,
                                UnivariateSpline, interp1d)
 
-from .constants import AU, GG_Q, NOUNIT, PI, R2D, TIU
+from .constants import AU, GG_Q, NOUNIT, PI, R2D, TIU, FLAMU
 from .relations import (p2w, solve_Gq, solve_pAG, solve_pDH, solve_rmrho,
                         solve_temp_eqm, solve_thermal_par)
 from .scat.phase import iau_hg_model
@@ -705,7 +705,7 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             dlon=self.dlon, dlat=self.dlat
         )
 
-        self.flux_ther = (fluxarr * (u.W/u.m**2/u.um)
+        self.flux_ther = (fluxarr * FLAMU
                           * self.emissivity
                           * (to_val(self.radi_eff, u.m)**2)
                           / (to_val(self.r_obs, u.m)**2)
@@ -752,7 +752,7 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
 
         phase_factor = iau_hg_model(alphas=self.phase_ang.to_value(u.deg),
                                     gpar=self.slope_par.value)
-        self.flux_refl = (SOLAR_SPEC[wlen_mask, 1] * (u.W/u.m**2/u.um)
+        self.flux_refl = (SOLAR_SPEC[wlen_mask, 1] * FLAMU
                           * refl*self.p_vis
                           * (self.radi_eff.to_value(u.m))**2
                           / ((self.r_hel.to_value(u.au))**2*(self.r_obs.to_value(u.m))**2)
