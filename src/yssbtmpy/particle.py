@@ -168,7 +168,7 @@ class MovingParticle(SmallBodyForceMixin):
             longitude (``phi`` of the notation, which is 0 at midnight, 90 deg
             at sunrise) of the initial position.
         """
-        height_init = to_quantity(height, u.m, to_value=False)
+        height_init = to_quantity(height, u.m)
         height_init_m = (height_init.to(u.m)).value
         r = self.r_sb_m + height_init_m
         th = to_quantity(colat, u.deg, to_value=True)
@@ -295,13 +295,13 @@ class MovingParticle(SmallBodyForceMixin):
         check_min = False
         if min_height is not None:
             check_min = True
-            self.min_height = to_quantity(min_height, u.m, to_value=False)
+            self.min_height = to_quantity(min_height, u.m)
             self.min_height_m = (self.min_height.to(u.m)).value
 
         check_max = False
         if max_height is not None:
             check_max = True
-            self.max_height = to_quantity(max_height, u.m, to_value=False)
+            self.max_height = to_quantity(max_height, u.m)
             self.max_height_m = (self.max_height.to(u.m)).value
 
         self.halt_code = None

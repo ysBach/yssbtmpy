@@ -243,8 +243,8 @@ def lonlat2cart(lon: F_OR_Q, lat: F_OR_Q, degree: bool = True, r: F_OR_Q = 1) ->
     """
     targ_unit = u.deg if degree else u.rad
 
-    lon = to_quantity(lon, targ_unit, to_value=False)
-    lat = to_quantity(lat, targ_unit, to_value=False)
+    lon = to_quantity(lon, targ_unit)
+    lat = to_quantity(lat, targ_unit)
     theta = 90*u.deg - lat
     return sph2cart(theta=theta, phi=lon, r=r)
 
@@ -273,8 +273,8 @@ def sph2cart(theta: F_OR_Q, phi: F_OR_Q, degree: bool = True, r: F_OR_Q = 1) -> 
     """
     targ_unit = u.deg if degree else u.rad
 
-    th = to_quantity(theta, targ_unit, to_value=False)
-    ph = to_quantity(phi, targ_unit, to_value=False)
+    th = to_quantity(theta, targ_unit)
+    ph = to_quantity(phi, targ_unit)
 
     sin_th = (np.sin(th)).value
     cos_th = (np.cos(th)).value
@@ -387,8 +387,7 @@ def calc_aspect_ang(
     r_hel_hat = r_hel_vec/np.linalg.norm(r_hel_vec)
     aspect_ang = to_quantity(
         np.rad2deg(np.arccos(np.inner(-1*r_hel_hat, spin_vec))),
-        u.deg,
-        to_value=False
+        u.deg
     )
     # aux_cos_sun = np.inner(r_hel_hat, self.spin_vec)
     # self.aspect_ang = (180-np.rad2deg(np.arccos(aux_cos_sun)))*u.deg
@@ -401,8 +400,7 @@ def calc_aspect_ang(
     #                         obs_ecl_helio.lat)
     aspect_ang_obs = to_quantity(
         np.rad2deg(np.arccos(np.inner(-1*r_obs_hat, spin_vec))),
-        u.deg,
-        to_value=False
+        u.deg
     )
     # aux_cos_obs = np.inner(r_obs_hat, self.spin_vec)
     # aspect_ang_obs = (180-np.rad2deg(np.arccos(aux_cos_obs)))*u.deg
