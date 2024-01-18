@@ -13,7 +13,7 @@ from .constants import CC, D2R, HH, KB, PI, R2D
 __all__ = [
     "F_OR_Q", "F_OR_ARR", "F_OR_Q_OR_ARR",
     # "convrt_quant",
-    "change_to_quantity", "add_hdr", "parse_obj",
+    "to_quantity", "to_val", "add_hdr", "parse_obj",
     "lonlat2cart", "sph2cart", "cart2sph",
     "calc_aspect_ang",
     "mat_ec2fs", "mat_bf2ss",
@@ -38,7 +38,7 @@ F_OR_Q_OR_ARR = Union[u.Quantity, float, np.ndarray]
 #     fluxlambda*wlen
 
 
-def change_to_quantity(
+def to_quantity(
     x: F_OR_Q_OR_ARR,
     desired: str | u.Unit = u.dimensionless_unscaled,
     to_value: bool = False
@@ -97,7 +97,13 @@ def change_to_quantity(
     return ux
 
 
-# def change_to_quantity(
+def to_val(x: F_OR_Q_OR_ARR,
+           desired: str | u.Unit = u.dimensionless_unscaled) -> F_OR_ARR:
+    """Change input into the desired unit.
+    """
+    return to_quantity(x, desired=desired, to_value=True)
+
+# def to_quantity(
 #     x: F_OR_Q_OR_ARR,
 #     desired: str | u.Unit = '',
 #     to_value: bool = False
@@ -167,7 +173,7 @@ def add_hdr(
         desired_unit: str | u.Unit = '',
         comment: str = None
 ):
-    _val = change_to_quantity(val, desired=desired_unit, to_value=True)
+    _val = to_quantity(val, desired=desired_unit, to_value=True)
     header[key] = (_val, comment)
     return header
 
@@ -237,8 +243,8 @@ def lonlat2cart(lon: F_OR_Q, lat: F_OR_Q, degree: bool = True, r: F_OR_Q = 1) ->
     """
     targ_unit = u.deg if degree else u.rad
 
-    lon = change_to_quantity(lon, targ_unit, to_value=False)
-    lat = change_to_quantity(lat, targ_unit, to_value=False)
+    lon = to_quantity(lon, targ_unit, to_value=False)
+    lat = to_quantity(lat, targ_unit, to_value=False)
     theta = 90*u.deg - lat
     return sph2cart(theta=theta, phi=lon, r=r)
 
@@ -267,8 +273,8 @@ def sph2cart(theta: F_OR_Q, phi: F_OR_Q, degree: bool = True, r: F_OR_Q = 1) -> 
     """
     targ_unit = u.deg if degree else u.rad
 
-    th = change_to_quantity(theta, targ_unit, to_value=False)
-    ph = change_to_quantity(phi, targ_unit, to_value=False)
+    th = to_quantity(theta, targ_unit, to_value=False)
+    ph = to_quantity(phi, targ_unit, to_value=False)
 
     sin_th = (np.sin(th)).value
     cos_th = (np.cos(th)).value
@@ -379,7 +385,7 @@ def calc_aspect_ang(
     """
     # default aspect angle
     r_hel_hat = r_hel_vec/np.linalg.norm(r_hel_vec)
-    aspect_ang = change_to_quantity(
+    aspect_ang = to_quantity(
         np.rad2deg(np.arccos(np.inner(-1*r_hel_hat, spin_vec))),
         u.deg,
         to_value=False
@@ -393,7 +399,7 @@ def calc_aspect_ang(
     r_obs_hat = r_obs_vec/np.linalg.norm(r_obs_vec)
     # r_obs_hat = lonlat2cart(obs_ecl_helio.lon,
     #                         obs_ecl_helio.lat)
-    aspect_ang_obs = change_to_quantity(
+    aspect_ang_obs = to_quantity(
         np.rad2deg(np.arccos(np.inner(-1*r_obs_hat, spin_vec))),
         u.deg,
         to_value=False
@@ -520,7 +526,7 @@ def mat_bf2ss(colat: F_OR_Q_OR_ARR) -> np.ndarray:
     will give the components of vector ``a`` in surface system, where ``m`` is
     the result of this function.
     """
-    colat__deg = change_to_quantity(colat, u.deg, to_value=True)
+    colat__deg = to_quantity(colat, u.deg, to_value=True)
     _c = np.cos(colat__deg * D2R)
     _s = np.sin(colat__deg * D2R)
     return np.array(((0., 1., 0.), (-_c, 0., _s), (_s, 0., _c)))
@@ -581,8 +587,8 @@ def calc_mu_vals(
     will give the components of vector ``a`` in surface system, where ``m`` is
     the result of this function.
     """
-    colats__deg = change_to_quantity(colats, u.deg, to_value=True)
-    phases__rad = change_to_quantity(phases, u.rad, to_value=True)
+    colats__deg = to_quantity(colats, u.deg, to_value=True)
+    phases__rad = to_quantity(phases, u.rad, to_value=True)
     r_vec_norm = r_vec/np.linalg.norm(r_vec)
     spin_vec_norm = spin_vec/np.linalg.norm(spin_vec)
 
