@@ -1,7 +1,7 @@
 import numpy as np
 from astropy import units as u
 from .constants import CC, HH, KB, SIGMA_SB
-from .util import change_to_quantity
+from .util import to_val
 
 
 __all__ = ["B_lambda", "b_lambda", "flam2jy", "jy2flam", "flam2ab"]
@@ -23,8 +23,8 @@ def B_lambda(wavelen, temperature):
     radiance : ndarray
         The black body radiance [energy/time/area/length/sr] = [W/m2/m/sr].
     """
-    wl = change_to_quantity(wavelen, u.m, to_value=True)
-    temp = change_to_quantity(temperature, u.K, to_value=True)
+    wl = to_val(wavelen, u.m)
+    temp = to_val(temperature, u.K)
     coeff = 2*HH*CC**2 / wl**5
     denom = np.exp(HH*CC/(wl*KB*temp)) - 1
     radiance = coeff / denom
@@ -48,8 +48,8 @@ def b_lambda(wavelen, temperature):
     radiance : ndarray
         The small b function [1/wavelen].
     """
-    wl = change_to_quantity(wavelen, u.m, to_value=True)
-    temp = change_to_quantity(temperature, u.K, to_value=True)
+    wl = to_val(wavelen, u.m)
+    temp = to_val(temperature, u.K)
     norm = SIGMA_SB * temp**4
     norm_radiance = np.pi * B_lambda(wavelen=wl, temperature=temp) / norm
     return norm_radiance
@@ -96,3 +96,27 @@ def flam2ab(flam, wlen, reference_jy=3631):
         The wavelength in um.
     """
     return -2.5*np.log10(flam2jy(flam, wlen)/reference_jy)
+
+
+def planck_avg(wlen, val, temp):
+    """Average by weighting of Planck function(B_lambda)
+
+    Parameters
+    ----------
+    wlen, val : array-like
+        The wavelength and value of a thing (frequently used example:
+        emissivity or reflectance over wavelength) to be averaged.
+
+    temp : float or `~Quantity`
+        The temperature of the Planck function. In Kelvin unit if not Quantity. For specific purpose,
+        you can give it in an ndarray format, but not recommended.
+
+    Notes
+    -----
+    Average is
+
+    ..math::
+        \frac{\int B_\lambda(T) val(\lambda) d\lambda}{\int B_\lambda(T) d\lambda}
+    """
+    temp = to_val(temp, u.K)
+    norm = np.pi/SIGMA_SB/temp**4
