@@ -1,10 +1,11 @@
 import numpy as np
 from astropy import units as u
-from .constants import CC, HH, KB, SIGMA_SB
+from scipy.integrate import trapezoid
+
+from .constants import CC, HH, KB, PI, SIGMA_SB
 from .util import to_val
 
-
-__all__ = ["B_lambda", "b_lambda", "flam2jy", "jy2flam", "flam2ab"]
+__all__ = ["B_lambda", "b_lambda", "flam2jy", "jy2flam", "flam2ab", "planck_avg"]
 
 
 def B_lambda(wavelen, temperature):
@@ -98,8 +99,8 @@ def flam2ab(flam, wlen, reference_jy=3631):
     return -2.5*np.log10(flam2jy(flam, wlen)/reference_jy)
 
 
-def planck_avg(wlen, val, temp):
-    """Average by weighting of Planck function(B_lambda)
+def planck_avg(wlen, val, temp, use_sb=True):
+    """Average by weighting of Planck function (int(B_lambda*val)/int(B_lambda))
 
     Parameters
     ----------
@@ -111,6 +112,12 @@ def planck_avg(wlen, val, temp):
         The temperature of the Planck function. In Kelvin unit if not Quantity. For specific purpose,
         you can give it in an ndarray format, but not recommended.
 
+    use_sb : bool
+        If `True`, the Stefan-Boltzmann relation is used for the denominator
+        (``integral(B_lambda) = SIGMA_SB * T**4 / PI``). Otherwise, numerical
+        integration is used (``integral(B_lambda) = trapezoid(x=wlen,
+        y=B_lambda(wlen, temp))``).
+
     Notes
     -----
     Average is
@@ -119,4 +126,9 @@ def planck_avg(wlen, val, temp):
         \frac{\int B_\lambda(T) val(\lambda) d\lambda}{\int B_\lambda(T) d\lambda}
     """
     temp = to_val(temp, u.K)
-    norm = np.pi/SIGMA_SB/temp**4
+    numer = trapezoid(B_lambda(wlen, temp)*val, wlen)
+    if use_sb:
+        denom = SIGMA_SB*temp**4/PI
+    else:
+        denom = trapezoid(B_lambda(wlen, temp), wlen)
+    return numer/denom
