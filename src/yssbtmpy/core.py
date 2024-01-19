@@ -614,21 +614,11 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
         lons_spl = np.linspace(0, 360 + self.dlon*R2D, self.nlon + 1)
         colats_spl = self.colats.to_value(u.deg)
 
-        # Make nlon + 1 and then remove this last element later
-        u_arr = np.zeros(shape=(self.nlat, self.nlon + 1, self.nZ))
-
-        if u_arr_midnight is None:
-            # initial guess = temp_eqm*e^(-depth/skin_depth)
-            for k in range(self.nlat):
-                u_arr[k, 0, :] = np.exp(-Zarr)
-        else:
-            for k in range(self.nlat):
-                u_arr[k, 0, :] = u_arr_midnight[k, :]
-
         # For interpolation in lon = 360 deg - dlon to 360 deg:
         # Append lon = 0 to the last -- for interpolation purpose!
         _mu_suns = self.mu_suns.copy()
         _mu_suns = np.append(_mu_suns, np.atleast_2d(_mu_suns[:, 0]).T, axis=1)
+
         try:
             self.spl_musun = RectBivariateSpline(
                 colats_spl, lons_spl, _mu_suns, kx=1, ky=1, s=0
@@ -637,21 +627,32 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             self.spl_musun = interp1d(lons_spl, _mu_suns[0], kind="linear",
                                       bounds_error=False, fill_value="extrapolate")
 
-        if self.thermal_par.value < 1.e-8:
-            warn("Thermal parameter too small: Automatically set to 1.e-8.")
-            self.thermal_par = 1.e-8*NOUNIT
+        # Make nlon + 1 and then remove this last element later
+        u_arr = np.zeros(shape=(self.nlat, self.nlon + 1, self.nZ))
 
-        calc_uarr_tpm(
-            u_arr,
-            thpar=self.thermal_par.value,
-            dlon=self.dlon,
-            dZ=self.dZ,
-            mu_suns=self.mu_suns,
-            min_iter=self.min_iter,
-            max_iter=self.max_iter,
-            permanent_shadow_u=permanent_shadow_u,
-            atol=atol
-        )
+        if self.thermal_par.value < 1.e-8:
+            warn(f"{self.thermal_par=:6.4e} too small: Ignore TPM, run NEATM-like calculation.")
+            u_arr[:, :, 0] = _mu_suns**(1/4)*self.temp_eqm  # all deeper cells have T=0.
+        else:
+            if u_arr_midnight is None:
+                # initial guess = temp_eqm*e^(-depth/skin_depth)
+                for k in range(self.nlat):
+                    u_arr[k, 0, :] = np.exp(-Zarr)
+            else:
+                for k in range(self.nlat):
+                    u_arr[k, 0, :] = u_arr_midnight[k, :]
+
+            calc_uarr_tpm(
+                u_arr,
+                thpar=self.thermal_par.value,
+                dlon=self.dlon,
+                dZ=self.dZ,
+                mu_suns=self.mu_suns,
+                min_iter=self.min_iter,
+                max_iter=self.max_iter,
+                permanent_shadow_u=permanent_shadow_u,
+                atol=atol
+            )
 
         try:
             # Because there is one more "phase" value, we make spline here
@@ -692,7 +693,6 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             self.set_muobss()
 
         self.wlen_ther = to_quantity(wlen, u.um)
-        wlen__m = self.wlen_ther.to_value(u.m)
 
         if self.tempsurf is None:
             raise ValueError("tempsurf is None. Please run .calc_temp() first.")
@@ -700,16 +700,17 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
         fluxarr = np.zeros(self.wlen_ther.size, dtype=float)
         calc_flux_tpm(
             fluxarr,
-            wlen__m=wlen__m, tempsurf=self.tempsurf, mu_obss=self.mu_obss,
+            wlen=self.wlen_ther.value,  # in um
+            tempsurf=self.tempsurf, mu_obss=self.mu_obss,
             colats=to_val(self.colats, u.rad),
             dlon=self.dlon, dlat=self.dlat
         )
-
         self.flux_ther = (fluxarr * FLAMU
                           * self.emissivity
                           * (to_val(self.radi_eff, u.m)**2)
                           / (to_val(self.r_obs, u.m)**2)
                           / 1.e+6)  # W/m^2/**um**
+        # See, e.g., Eq. 19 of Myhrvold 2018 Icarus, 303, 91.
 
     def calc_flux_refl(self, wlen_min=0, wlen_max=1000, refl: F_OR_ARR = None):
         """
@@ -719,7 +720,8 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             wlen_max``. Default is 0 and 1000.
 
         refl : float, Quantity, optional.
-            The reflectance. If not given, it is set to 1 (complete reflection).
+            The reflectance, normalized to 1 at V-band, in linear scale. If not
+            given, it is set to 1 (flat spectrum).
 
         Notes
         -----
@@ -752,13 +754,14 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
 
         phase_factor = iau_hg_model(alphas=self.phase_ang.to_value(u.deg),
                                     gpar=self.slope_par.value)
-        self.flux_refl = (SOLAR_SPEC[wlen_mask, 1] * FLAMU
+        self.flux_refl = (SOLAR_SPEC[wlen_mask, 1]/(self.r_hel.to_value(u.au))**2
                           * refl*self.p_vis
                           * (self.radi_eff.to_value(u.m))**2
-                          / ((self.r_hel.to_value(u.au))**2*(self.r_obs.to_value(u.m))**2)
+                          / (self.r_obs.to_value(u.m))**2
                           * phase_factor
-                          )
+                          ) * FLAMU
         # SOLAR_SPEC already is for r_hel = 1au, so for r_hel, it should use u.au.
+        # See, e.g., Eq. 19 of Myhrvold 2018 Icarus, 303, 91.
 
     def get_temp_1d(self, colat__deg, lon__deg):
         """ Return 1d array of temperature.
