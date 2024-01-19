@@ -69,7 +69,7 @@ def jy2flam(jy, wlen):
 
     1Jy = 10-26 W⋅m-2⋅Hz-1
     """
-    return 299792458.0/to_val(wlen, u.um)**2*1.e+12 * to_val(jy, u.Jy)
+    return 299792458.0/((to_val(wlen, u.um)*1.e-6)**2) * to_val(jy, u.Jy)*1.e-32
 
 
 def flam2ab(flam, wlen):
@@ -85,7 +85,7 @@ def flam2ab(flam, wlen):
     return jy2ab(flam2jy(to_val(flam, FLAMU), to_val(wlen, u.um)))
 
 
-def jy2ab(jy, reference_jy=3631):
+def jy2ab(jy):
     """ Convert flux density from [Jy] to [AB mag].
     Parameters
     ----------
