@@ -1010,7 +1010,7 @@ def calc_uarr_tpm(
 
 
 @njit(parallel=True)
-def calc_flux_tpm(fluxarr, wlen__m, tempsurf, mu_obss, colats, dlat, dlon):
+def calc_flux_tpm(fluxarr, wlen, tempsurf, mu_obss, colats, dlat, dlon):
     """ Calculates the fulx at given wlen in W/m^2/m
 
     Parameters
@@ -1018,9 +1018,9 @@ def calc_flux_tpm(fluxarr, wlen__m, tempsurf, mu_obss, colats, dlat, dlon):
     fluxarr : 1-d array
         The array to be filled with the flux values. Must have the identical
         length to `wlen`.
-    wlen__m : 1-d array
-        The wavelength corresponding to `fluxarr`, must be in SI unit (meter).
-        Both must have the identical length.
+    wlen : 1-d array
+        The wavelength corresponding to `fluxarr`, in um. Both must have the
+        identical length.
     tempsurf : 2-d array
         The surface temperature in Kelvin. The value at `tempsurf[i, j]` must
         be corresponding to the `mu_obs[i, j]`.
@@ -1035,8 +1035,8 @@ def calc_flux_tpm(fluxarr, wlen__m, tempsurf, mu_obss, colats, dlat, dlon):
         The delta-latitude and -longitude of patches in radian unit.
     """
     dlon_dlat = dlon*dlat
-    for k in nb.prange(len(wlen__m)):
-        wl = wlen__m[k]
+    for k in nb.prange(len(wlen)):
+        wl = wlen[k]*1.e-6  # um to m
         factor1 = 2*HH*CC**2/wl**5
         factor2 = (HH*CC)/(KB*wl)
         for i in range(tempsurf.shape[0]):
@@ -1046,8 +1046,3 @@ def calc_flux_tpm(fluxarr, wlen__m, tempsurf, mu_obss, colats, dlat, dlon):
                 if mu_obs > 0:
                     radiance = factor1/(np.expm1(factor2/tempsurf[i, j]))
                     fluxarr[k] += radiance*mu_obs*area_factor
-
-
-@njit(parallel=True)
-def calc_flux_vis(fluxarr, gpar, alpha):
-    pass
