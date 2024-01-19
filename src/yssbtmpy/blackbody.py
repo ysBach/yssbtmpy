@@ -2,10 +2,10 @@ import numpy as np
 from astropy import units as u
 from scipy.integrate import trapezoid
 
-from .constants import CC, HH, KB, PI, SIGMA_SB
+from .constants import CC, HH, KB, PI, SIGMA_SB, FLAMU
 from .util import to_val
 
-__all__ = ["B_lambda", "flam2jy", "jy2flam", "flam2ab", "planck_avg"]
+__all__ = ["B_lambda", "flam2jy", "jy2flam", "flam2ab", "jy2ab", "planck_avg"]
 
 
 def B_lambda(wlen, temperature, normalized=False):
@@ -42,11 +42,11 @@ def B_lambda(wlen, temperature, normalized=False):
     return radiance * 1.e-6  # [W/m2/**um**/sr]
 
 
-def flam2jy(flam, wlen):
-    """ Convert flux density from [W/m2/um] to [Jy].
+def flam2jy(flam_si, wlen):
+    """ Convert flux density from [FLAM_SI = W/m2/um = 10 erg/s/cm2/AA] to [Jy].
     Parameters
     ----------
-    flam : array-like
+    flam_si : array-like
         The flux density in [W/m2/um].
 
     wlen : array-like
@@ -54,11 +54,11 @@ def flam2jy(flam, wlen):
 
     1Jy = 10-26 W⋅m-2⋅Hz-1
     """
-    return 3.33564095e+11 * flam * wlen**2
+    return 3.33564095e+11 * to_val(flam_si, FLAMU) * to_val(wlen, u.um)**2
 
 
 def jy2flam(jy, wlen):
-    """ Convert flux density from [Jy] to [W/m2/um].
+    """ Convert flux density from [Jy] to [FLAM_SI = W/m2/um = 10 erg/s/cm2/AA].
     Parameters
     ----------
     jy : array-like
@@ -69,10 +69,10 @@ def jy2flam(jy, wlen):
 
     1Jy = 10-26 W⋅m-2⋅Hz-1
     """
-    return 299792458.0/wlen**2 * jy
+    return 299792458.0/to_val(wlen, u.um)**2*1.e+12 * to_val(jy, u.Jy)
 
 
-def flam2ab(flam, wlen, reference_jy=3631):
+def flam2ab(flam, wlen):
     """ Convert flux density from [W/m2/um] to [AB mag].
     Parameters
     ----------
@@ -82,10 +82,20 @@ def flam2ab(flam, wlen, reference_jy=3631):
     wlen : array-like
         The wlength in um.
     """
-    return -2.5*np.log10(flam2jy(flam, wlen)/reference_jy)
+    return jy2ab(flam2jy(to_val(flam, FLAMU), to_val(wlen, u.um)))
 
 
-def planck_avg(wlen, val, temp, use_sb=True):
+def jy2ab(jy, reference_jy=3631):
+    """ Convert flux density from [Jy] to [AB mag].
+    Parameters
+    ----------
+    jy : array-like
+        The flux density in [Jy].
+    """
+    return -2.5*np.log10(to_val(jy, u.Jy)) + 8.90
+
+
+def planck_avg(wlen, val, temp, use_sb=False):
     """Average by weighting of Planck function (int(B_lambda*val)/int(B_lambda))
 
     Parameters
@@ -95,8 +105,7 @@ def planck_avg(wlen, val, temp, use_sb=True):
         example: emissivity or reflectance over wlength) to be averaged.
 
     temp : float or `~Quantity`
-        The temperature of the Planck function. In Kelvin unit if not Quantity. For specific purpose,
-        you can give it in an ndarray format, but not recommended.
+        The temperature of the Planck function. In Kelvin unit if not Quantity.
 
     use_sb : bool
         If `True`, the Stefan-Boltzmann relation is used for the denominator
