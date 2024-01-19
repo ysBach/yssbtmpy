@@ -31,7 +31,8 @@ This package has been used by:
 * [Beniyama et al. (2022) PASJ](https://ui.adsabs.harvard.edu/abs/2022PASJ...74..877B/abstract) (priv. comm.)
 
 ## Notes
-Unlike PEP8, this package source codes used **maximum line length=92**, following [Julia code formatting guidelines](https://github.com/JuliaLang/julia/blob/master/CONTRIBUTING.md#code-formatting-guidelines) + **docstring maximum line length = 79**.
+Unit of `flam` used by astronomical packages unfortunately use strange cgs-style unit, erg/s/cm2/Å. In this package, we use a more standard unit FLAM_SI = W/m2/µm, following, for example, solar standard spectrum (ASTM 2000), engineering and physics fields, and spacecraft/telescope designs. Conversion is:
+  1 FLAM_SI = 10 FLAM_ASTRONOMY (if your flux in classical astronomical FLAM, divide it by 10 to get FLAM_SI)
 
 **Why "ys"sbtmpy? The name "sbtmpy" is too general, and I believe a better package should take that name, so I decided not to occupy the name. I see many useless packages that preoccupy meaningful names...**
 
