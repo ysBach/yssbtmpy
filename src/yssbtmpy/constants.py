@@ -24,7 +24,7 @@ TIU = u.def_unit("tiu", u.J/u.K/u.m**2/u.s**0.5)  # thermal inertia unit
 TCU = u.def_unit("tcu", u.W/u.m/u.K)  # thermal conductivity unit
 MDU = u.def_unit("mdu", u.kg/u.m**3)  # mass density unit
 HCU = u.def_unit("hcu", u.J/u.kg/u.K)  # specific heat capacity unit
-FLAMU = u.def_unit("flamu", u.W/u.m**2/u.um)  # flux density unit for FLAM
+FLAMU = u.def_unit("flam_SI", u.W/u.m**2/u.um)  # flux density unit for FLAM
 NOUNIT = u.dimensionless_unscaled
 
 # [m^3/kg/s^2] Gravitational constant
