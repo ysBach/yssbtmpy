@@ -632,7 +632,7 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
 
         if self.thermal_par.value < 1.e-8:
             warn(f"{self.thermal_par=:6.4e} too small: Ignore TPM, run NEATM-like calculation.")
-            u_arr[:, :, 0] = _mu_suns**(1/4)*self.temp_eqm  # all deeper cells have T=0.
+            u_arr[:, :, 0] = _mu_suns**(1/4)  # all deeper cells have T=0.
         else:
             if u_arr_midnight is None:
                 # initial guess = temp_eqm*e^(-depth/skin_depth)
