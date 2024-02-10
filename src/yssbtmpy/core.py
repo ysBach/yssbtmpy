@@ -559,6 +559,7 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             in_kelvin: bool = False,
             retain_last_uarr: bool = False,
             atol: float = 1.e-8,
+            skip_spl: bool = False,
             verbose: bool = False
     ) -> None:
         """ Calculate the temperature using TPM
@@ -588,6 +589,11 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             seasonal-effect calculation, where ``u_arr[:, -1, :]`` should be
             different from ``u_arr[:, 0, :]``.
 
+        skip_spl : bool, optional.
+            If `True`, the spline for the temperature and mu_sun are not
+            calculated. This is useful when the user only needs quick
+            calculation
+
         atol : float, optional
             The absolute tolerance for the iteration to stop. (Stops if the
             T/T_EQM < `atol`). See `util.calc_uarr_tpm` for more details.
@@ -611,21 +617,22 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
         Zarr = np.linspace(0, self.Zmax - self.dZ, self.nZ)
 
         # For interpolation in lon = 360 deg - dlon to 360 deg:
-        lons_spl = np.linspace(0, 360 + self.dlon*R2D, self.nlon + 1)
-        colats_spl = self.colats.to_value(u.deg)
+        self.lons_spl = np.linspace(0, 360 + self.dlon*R2D, self.nlon + 1)
+        self.colats_spl = self.colats.to_value(u.deg)
 
         # For interpolation in lon = 360 deg - dlon to 360 deg:
         # Append lon = 0 to the last -- for interpolation purpose!
         _mu_suns = self.mu_suns.copy()
         _mu_suns = np.append(_mu_suns, np.atleast_2d(_mu_suns[:, 0]).T, axis=1)
 
-        try:
-            self.spl_musun = RectBivariateSpline(
-                colats_spl, lons_spl, _mu_suns, kx=1, ky=1, s=0
-            )
-        except:  # only one colat
-            self.spl_musun = interp1d(lons_spl, _mu_suns[0], kind="linear",
-                                      bounds_error=False, fill_value="extrapolate")
+        if not skip_spl:
+            try:
+                self.spl_musun = RectBivariateSpline(
+                    self.colats_spl, self.lons_spl, _mu_suns, kx=1, ky=1, s=0
+                )
+            except:  # only one colat
+                self.spl_musun = interp1d(self.lons_spl, _mu_suns[0], kind="linear",
+                                        bounds_error=False, fill_value="extrapolate")
 
         # Make nlon + 1 and then remove this last element later
         u_arr = np.zeros(shape=(self.nlat, self.nlon + 1, self.nZ))
@@ -654,15 +661,16 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
                 atol=atol
             )
 
-        try:
-            # Because there is one more "phase" value, we make spline here
-            # before erasing it in the next line:
-            self.spl_uarr = RectBivariateSpline(
-                colats_spl, lons_spl, u_arr[:, :, 0], kx=1, ky=1, s=0
-            )
-        except:  # only one colat
-            self.spl_uarr = interp1d(lons_spl, u_arr[0, :, 0], kind="linear",
-                                     bounds_error=False, fill_value="extrapolate")
+        if not skip_spl:
+            try:
+                # Because there is one more "phase" value, we make spline here
+                # before erasing it in the next line:
+                self.spl_uarr = RectBivariateSpline(
+                    self.colats_spl, self.lons_spl, u_arr[:, :, 0], kx=1, ky=1, s=0
+                )
+            except:  # only one colat
+                self.spl_uarr = interp1d(self.lons_spl, u_arr[0, :, 0], kind="linear",
+                                        bounds_error=False, fill_value="extrapolate")
 
         # because there is one more "phase" value, erase it:
         if not retain_last_uarr:
@@ -780,7 +788,12 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
         function may be used hundreds of thousands of times for each
         simulation, so 1ms is not a small time delay.
         """
-        temp = self.spl_uarr(colat__deg, lon__deg)
+        try:
+            temp = self.spl_uarr(colat__deg, lon__deg)
+        except AttributeError:
+            raise AttributeError(
+                "self.spl_uarr is not set. Run .calc_temp() with skip_spl=False."
+            )
         return self.temp_eqm__K*temp.flatten()
 
     def get_temp_2d(self, colat__deg, lon__deg):
@@ -800,7 +813,12 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
         function may be used hundreds of thousands of times for each
         simulation, so 1ms is not a small time delay.
         """
-        return self.temp_eqm__K*self.spl_uarr(colat__deg, lon__deg)
+        try:
+            return self.temp_eqm__K*self.spl_uarr(colat__deg, lon__deg)
+        except AttributeError:
+            raise AttributeError(
+                "self.spl_uarr is not set. Run .calc_temp() with skip_spl=False."
+            )
 
     def get_musun(self, colat__deg, lon__deg):
         """ Return 1d array of temperature.
@@ -820,7 +838,12 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
         function may be used hundreds of thousands of times for each
         simulation, so 1ms is not a small time delay.
         """
-        musun = self.spl_musun(colat__deg, lon__deg)
+        try:
+            musun = self.spl_musun(colat__deg, lon__deg)
+        except AttributeError:
+            raise AttributeError(
+                "self.spl_musun is not set. Run .calc_temp() with skip_spl=False."
+            )
         musun[musun < 1.e-4] = 0
         # 1.e-4 corresponds to incidence angle of 89.994˚
         return musun.flatten()
