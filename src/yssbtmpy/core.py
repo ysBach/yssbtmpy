@@ -528,6 +528,7 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             spin_vec=self.spin_vec,
             phases=self.phases,
             colats=self.colats,
+            r_sun=self.r_sun_disc.to_value(u.deg) if self.r_sun_disc is not None else None,
             full=False
         )
 
@@ -559,6 +560,7 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             in_kelvin: bool = False,
             retain_last_uarr: bool = False,
             atol: float = 1.e-8,
+            r_sun_disc: float = None,
             skip_spl: bool = False,
             verbose: bool = False
     ) -> None:
@@ -589,6 +591,10 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             seasonal-effect calculation, where ``u_arr[:, -1, :]`` should be
             different from ``u_arr[:, 0, :]``.
 
+        r_sun_disc : float, Quantity, optional.
+            The radius of the Sun's disk (in degrees if `float`). If not given,
+            the Sun is assumed to be a point source.
+
         skip_spl : bool, optional.
             If `True`, the spline for the temperature and mu_sun are not
             calculated. This is useful when the user only needs quick
@@ -611,6 +617,11 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
                     + "({self.thermal_par:.3e}); recommended to be >= 1500."
                 )
 
+        if r_sun_disc is not None:
+            self.r_sun_disc = to_quantity(r_sun_disc, u.deg)
+        else:
+            self.r_sun_disc = None
+
         if self.mu_suns is None:
             self.set_musuns()
 
@@ -632,7 +643,7 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
                 )
             except:  # only one colat
                 self.spl_musun = interp1d(self.lons_spl, _mu_suns[0], kind="linear",
-                                        bounds_error=False, fill_value="extrapolate")
+                                          bounds_error=False, fill_value="extrapolate")
 
         # Make nlon + 1 and then remove this last element later
         u_arr = np.zeros(shape=(self.nlat, self.nlon + 1, self.nZ))
@@ -670,7 +681,7 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
                 )
             except:  # only one colat
                 self.spl_uarr = interp1d(self.lons_spl, u_arr[0, :, 0], kind="linear",
-                                        bounds_error=False, fill_value="extrapolate")
+                                         bounds_error=False, fill_value="extrapolate")
 
         # because there is one more "phase" value, erase it:
         if not retain_last_uarr:
