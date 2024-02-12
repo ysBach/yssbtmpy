@@ -645,30 +645,24 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
         _mu_suns = self.mu_suns.copy()
         _mu_suns = np.append(_mu_suns, np.atleast_2d(_mu_suns[:, 0]).T, axis=1)
 
-        if not skip_spl:
-            try:
-                self.spl_musun = RectBivariateSpline(
-                    self.colats_spl, self.lons_spl, _mu_suns, kx=1, ky=1, s=0
-                )
-            except:  # only one colat
-                self.spl_musun = interp1d(self.lons_spl, _mu_suns[0], kind="linear",
-                                          bounds_error=False, fill_value="extrapolate")
-
         # Make nlon + 1 and then remove this last element later
         u_arr = np.zeros(shape=(self.nlat, self.nlon + 1, self.nZ))
 
         if self.thermal_par.value < 1.e-8:
-            warn(f"{self.thermal_par=:6.4e} too small: Ignore TPM, run NEATM-like calculation.")
             u_arr[:, :, 0] = _mu_suns**(1/4)  # all deeper cells have T=0.
+            warn(f"{self.thermal_par=:6.4e} too small: Ignore TPM, run NEATM-like calculation.")
         else:
             if u_arr_midnight is None:
-                # initial guess = temp_eqm*e^(-depth/skin_depth)
+                u_arr[:, :, 0] = _mu_suns**(1/4)
+                # ^ first, same as NEATM.
+                u_arr[:, 0, -1] = np.mean(u_arr[:, 0, :], axis=1)
+                # ^ then, deepest temp = mean (surface)
                 for k in range(self.nlat):
-                    u_arr[k, 0, :] = np.exp(-Zarr)
+                    u_arr[k, 0, :] = u_arr[k, self.nlon//2, :]*np.exp(-Zarr)
+                    # ^ midday temp * exp(-z)
             else:
                 for k in range(self.nlat):
                     u_arr[k, 0, :] = u_arr_midnight[k, :]
-
             calc_uarr_tpm(
                 u_arr,
                 thpar=self.thermal_par.value,
@@ -682,6 +676,14 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             )
 
         if not skip_spl:
+            try:
+                self.spl_musun = RectBivariateSpline(
+                    self.colats_spl, self.lons_spl, _mu_suns, kx=1, ky=1, s=0
+                )
+            except:  # only one colat
+                self.spl_musun = interp1d(self.lons_spl, _mu_suns[0], kind="linear",
+                                          bounds_error=False, fill_value="extrapolate")
+
             try:
                 # Because there is one more "phase" value, we make spline here
                 # before erasing it in the next line:

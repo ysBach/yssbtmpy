@@ -615,7 +615,7 @@ def calc_mu_vals(
     return mu_vals
 
 
-@njit(parallel=True, cache=True)
+@njit(parallel=True)
 def calc_partial_solar_disc(cos_i, r_sun__deg):
     """ Calculate the partial solar disc illumination.
 
@@ -653,7 +653,7 @@ def calc_partial_solar_disc(cos_i, r_sun__deg):
                 cos_i[i, j] = frac*np.cos((incid - y_c)*D2R)
 
 
-@njit(cache=True)
+@njit()
 def mat_bf2ss_nb(colat__deg: float) -> np.ndarray:
     """ The conversion matrix to convert body-fixed frame to surface system.
 
@@ -664,7 +664,7 @@ def mat_bf2ss_nb(colat__deg: float) -> np.ndarray:
     return np.array(((0., 1., 0.), (-_c, 0., _s), (_s, 0., _c)))
 
 
-@njit(cache=True)
+@njit()
 def mat_ec2fs_nb(r_vec_norm: np.ndarray, spin_vec_norm: np.ndarray) -> np.ndarray:
     """ The conversion matrix to convert ecliptic to frame system.
 
@@ -682,7 +682,7 @@ def mat_ec2fs_nb(r_vec_norm: np.ndarray, spin_vec_norm: np.ndarray) -> np.ndarra
     return np.ascontiguousarray(np.linalg.inv(m1))
 
 
-@njit(cache=True)
+@njit()
 def mat_fs2bf_nb(phase__rad: float) -> np.ndarray:
     """ The conversion matrix to convert frame system to body-fixed frame.
 
@@ -726,7 +726,7 @@ def calc_mu_val_nb(
 #         idarr[i] = idx_of_eph_jds
 
 
-@njit(parallel=True, cache=True)  # fastmath={"nnan", "ninf", "nsz"}
+@njit(parallel=True, )  # fastmath={"nnan", "ninf", "nsz"}
 def calc_varr_orbit(
         varrs_init: np.ndarray,
         phi0s: np.ndarray,
@@ -888,14 +888,13 @@ def update_varr(
     )
 
 
-@njit(cache=True)
+@njit()
 def newton_iter_tpm(
         newu0_init: float,
         newu1: float,
-        thpar: float,
-        dZ: float,
+        thdz: float,
         mu_sun: float,
-        Nmax: int = 5000,
+        iter_max: int = 5000,
         atol: float = 1.e-8
 ) -> float:
     """ Root finding using Newton's method
@@ -910,16 +909,14 @@ def newton_iter_tpm(
         The ``newu[1]`` value (that will have been calculated before this
         function will be called).
 
-    thpar : float
-        The thermal parameter
-
-    dZ : float
-        The depth slab resolution in the thermal skin depth unit.
+    thdz : float
+        The theta/dz, where theta is the thermal parameter, and dz is the depth
+        slab resolution in the thermal skin depth unit.
 
     mu_sun : float
         The cosine of the incident angle (zenith angle of the Sun).
 
-    Nmax : int, optional
+    iter_max : int, optional
         The maximum number of iteration to halt the root finding.
 
     atol : float, optional
@@ -927,23 +924,22 @@ def newton_iter_tpm(
         stop.
     """
     x0 = newu0_init
-
-    for _ in range(Nmax):
-        f0 = x0**4 - mu_sun - thpar / dZ * (newu1 - x0)
-        slope = 4 * x0**3 + thpar / dZ
-        x1 = x0 - f0 / slope
+    for _ in range(iter_max):
+        f0 = x0*x0*x0*x0 - mu_sun - thdz * (newu1 - x0)
+        slope = 4 * x0*x0*x0 + thdz
+        delta = f0 / slope
 
         # It is good if the iteration ends here:
-        if abs(x1 - x0) < atol:
-            return x1
+        if abs(delta) < atol:
+            return x0 - delta
 
         # Reset for next iteration
-        x0 = x1
-    return x1
+        x0 = x0 - delta
+    return x0
 
 
 # Tested on 15"MBP2018: speed is by ~10 times faster if parallel is used.
-@njit(parallel=True, cache=True)
+@njit(parallel=True)
 def calc_uarr_tpm(
         u_arr: np.ndarray,
         thpar: float,
@@ -952,8 +948,9 @@ def calc_uarr_tpm(
         mu_suns: np.ndarray,
         min_iter: int = 50,
         max_iter: int = 5000,
-        min_elevation_deg: float = 0.,
+        min_elev__deg: float = 0.,
         permanent_shadow_u: float = 0,
+        use_surfmean: bool = False,
         atol: float = 1.e-8
 ):
     """Calculates the u value in usual TPM.
@@ -978,9 +975,9 @@ def calc_uarr_tpm(
         The minimum or maxumum number of iteration for the equilibrium
         temperature calculation.
 
-    min_elevation_deg : int or float, optional
-        The minimum elevation to check whether the latitudinal slab is assumed
-        as a permanently shadowed region.
+    min_elev__deg : int or float, optional
+        The minimum elevation to check whether the latitude is assumed as a
+        permanently shadowed region.
         The latitudinal band is assumed to be in a permanent shadow if the sun
         is always below this elevation, and all the temperature on this
         latitude is just set as a constant given by `permanent_shadow_u in the
@@ -992,29 +989,38 @@ def calc_uarr_tpm(
         be cooled over the rotations (maybe useful for seasonal variation
         calculations).
 
+    use_surfmean : bool, optional
+        If `True`, the deepest temperature will be set as the mean of the
+        surface temperature of the previous iteration, to try to guarantee
+        the mathematical condition (time average of surface temp = deepest
+        temp). Maybe useful for very accurate deep temperature calculation.
+
     atol : float, optional
         The absolute tolerance for the iteration to stop. (Stops if the T/T_EQM
         < `atol`).
     """
     ncolat, ntimep1, ndepth = u_arr.shape
     ntime = ntimep1 - 1
+    dtdz2 = dlon/dZ**2
+    thdz = thpar/dZ
 
+    mu_sun_min = np.cos((90 - min_elev__deg)*D2R)
     # For each colatitude, parallel calculation is possible!!!
     # So use numba's prange rather than range:
     for i_lat in nb.prange(ncolat):
         if permanent_shadow_u is not None:
             # Check whether the latitude is under permanent shadow.
             permanent_shadow = True
-            for k in nb.prange(ntime):
-                # If the sun reaches above ``min_elevation_deg``, i.e.,
-                #   mu_sun = cos(90 - EL_sun) > cos(90 - min_elevation_deg)
+            for k in range(ntime):
+                # If the sun reaches above ``min_elev__deg``, i.e.,
+                #   mu_sun = cos(90 - EL_sun) > cos(90 - min_elev__deg)
                 # at least once, it's not a permanent shadow:
-                if mu_suns[i_lat, k] > np.cos((90 - min_elevation_deg)*D2R):
-                    # If sun rises > min_elevation_deg
+                if mu_suns[i_lat, k] > mu_sun_min:
+                    # If sun rises > min_elev__deg
                     permanent_shadow = False
                     break
             if permanent_shadow:
-                for i_t in range(ntime + 1):
+                for i_t in range(ntimep1):
                     for i_dep in range(ndepth):
                         u_arr[i_lat, i_t, i_dep] = permanent_shadow_u
         else:
@@ -1022,28 +1028,32 @@ def calc_uarr_tpm(
 
         if not permanent_shadow:
             discrep = 1.
+            if use_surfmean:
+                surf_mean = np.mean(u_arr[i_lat, :, 0])
+
             for i_iter in range(max_iter):
                 for i_t in range(ntime):
                     # cells other then surface/deepest ones
                     for i_z in range(1, ndepth - 1):
-                        u_arr[i_lat, i_t + 1, i_z] = (
-                            u_arr[i_lat, i_t, i_z]
-                            + dlon/dZ**2
-                            * (u_arr[i_lat, i_t, i_z - 1]
-                               + u_arr[i_lat, i_t, i_z + 1]
-                               - 2*u_arr[i_lat, i_t, i_z]
-                               )
+                        u_arr[i_lat, i_t + 1, i_z] = ftcs(
+                            x=u_arr[i_lat, i_t, i_z],
+                            xm1=u_arr[i_lat, i_t, i_z - 1],
+                            xp1=u_arr[i_lat, i_t, i_z + 1],
+                            factor=dtdz2
                         )
-                    # Deepest cell
-                    u_arr[i_lat, i_t + 1, -1] = u_arr[i_lat, i_t + 1, -2]
                     # Surface cell
                     u_arr[i_lat, i_t + 1, 0] = newton_iter_tpm(
                         newu0_init=u_arr[i_lat, i_t, 0],
                         newu1=u_arr[i_lat, i_t + 1, 1],
-                        thpar=thpar,
-                        dZ=dZ,
+                        thdz=thdz,
                         mu_sun=mu_suns[i_lat, i_t]
                     )
+
+                    # Deepest cell
+                    if use_surfmean:
+                        u_arr[i_lat, i_t + 1, -1] = surf_mean
+                    else:
+                        u_arr[i_lat, i_t + 1, -1] = u_arr[i_lat, i_t + 1, -2]
 
                 discrep = np.abs(u_arr[i_lat, 0, 0] - u_arr[i_lat, -1, 0])
 
@@ -1052,6 +1062,26 @@ def calc_uarr_tpm(
 
                 for i in range(ndepth):
                     u_arr[i_lat, 0, i] = u_arr[i_lat, -1, i]
+
+                if use_surfmean:
+                    surf_mean = np.mean(u_arr[i_lat, :, 0])
+
+    # TODO: Return i_iter?
+
+
+@njit()
+def ftcs(x, xm1, xp1, factor):
+    """ forward time-centered space propagaion.
+
+    Parameters
+    ----------
+    x, xm1, xp1 : float
+        The value at certain index, index minus 1 (`xm1`), and plus 1 (`xp1`).
+
+    factor : float
+        The factor multiplied: ``out = x + factor*(xp1 + xm1 - 2x)``.
+    """
+    return x + factor*(xp1 + xm1 - 2*x)
 
 
 @njit(parallel=True)
