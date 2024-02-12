@@ -436,6 +436,7 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
         self.nZ = None
         self.dZ = None
 
+        self.r_sun_disc = None
         self.mu_suns = None
         self.tempfull = None
         self.tempsurf = None
@@ -619,8 +620,6 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
 
         if r_sun_disc is not None:
             self.r_sun_disc = to_quantity(r_sun_disc, u.deg)
-        else:
-            self.r_sun_disc = None
 
         if self.mu_suns is None:
             self.set_musuns()
