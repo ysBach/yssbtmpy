@@ -318,7 +318,11 @@ class SmallBodyConstTPM():
         self.dZ = dZ
         self.nZ = int(np.around(Zmax/dZ))
 
-        # See MuellerM PhDT 2007 Sect 3.3.2:
+    # Check von Neumann stability analysis (See MuellerM PhDT 2007 Sect 3.3.2):
+    # For dy/dt = a d^2y/dx^2, stability requires dt <= dx^2/(2a).
+    # In TPM, du/dtau = 1*d^2u/dz^2, so dtau/dz^2 <= 0.5.
+    # Note that tau = omega*t = t*2pi/Prot = longitude (or rotational phase) in rad
+    #           z = x/ls = depth in thermal skin depth (sqrt(k/rho c omega)) unit
         if (self.dlon/(self.dZ)**2) > 0.5:
             raise ValueError(
                 "dlon/dZ^2 > 0.5 !! The solution may not converge. Tune such that "
@@ -563,6 +567,7 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             atol: float = 1.e-8,
             r_sun_disc: float = None,
             skip_spl: bool = False,
+            skip_musun: bool = True,
             verbose: bool = False
     ) -> None:
         """ Calculate the temperature using TPM
@@ -601,6 +606,11 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             calculated. This is useful when the user only needs quick
             calculation
 
+        skip_musun : bool, optional.
+            If `True`, skips `mu_suns` calculation if possible (i.e., when
+            `self.mu_suns` is not `None`). Useful for certain cases. Default is
+            `True`.
+
         atol : float, optional
             The absolute tolerance for the iteration to stop. (Stops if the
             T/T_EQM < `atol`). See `util.calc_uarr_tpm` for more details.
@@ -621,7 +631,7 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
         if r_sun_disc is not None:
             self.r_sun_disc = to_quantity(r_sun_disc, u.deg)
 
-        if self.mu_suns is None:
+        if not (skip_musun and self.mu_suns is not None):
             self.set_musuns()
 
         Zarr = np.linspace(0, self.Zmax - self.dZ, self.nZ)
