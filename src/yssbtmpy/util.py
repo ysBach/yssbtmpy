@@ -71,7 +71,7 @@ def to_quantity(
     is. If not Quantity, multiply the ``desired``. ``desired = None``, return
     ``x`` with dimensionless unscaled unit.
     """
-    if isinstance(x, (int, float)):
+    if isinstance(x, (float, int)):
         return x*1 if to_value else x*u.Unit(desired)
 
     try:
@@ -532,7 +532,7 @@ def mat_bf2ss(colat: F_OR_Q_OR_ARR) -> np.ndarray:
 
 def calc_mu_vals(
         r_vec: np.ndarray, spin_vec: np.ndarray,
-        phases: F_OR_Q_OR_ARR, colats: F_OR_Q_OR_ARR,
+        phases: F_OR_Q_OR_ARR, colats: F_OR_Q_OR_ARR, r_sun: F_OR_Q = None,
         full: bool = False
 ) -> np.ndarray:
     """ The conversion matrix to convert body-fixed frame to surface system.
@@ -551,6 +551,10 @@ def calc_mu_vals(
         The co-latitude of the surface (in degrees unit if float). Co-latitude
         is the angle between the pole (spin) vector and the normal vector of
         the surface of interest.
+
+    r_sun : float or ~astropy.Quantity, optional
+        The size of the solar disc. If given, partial illumination of the solar
+        disc will be calculated. In degrees unit if float.
 
     Return
     ------
@@ -601,11 +605,52 @@ def calc_mu_vals(
 
     # Z component = cos i_sun for mu_sun case.
     mu_vals = _dirs[:, :, 2].copy() if full else _dirs[:, :, 2]
-    mu_vals[mu_vals < 0] = 0
+    if r_sun is not None:
+        calc_partial_solar_disc(mu_vals, to_val(r_sun, u.deg))
+    else:
+        mu_vals[mu_vals < 0] = 0
 
     if full:
         return mu_vals, _dirs, _mat_ec2fs, mat_fs2bf_arr, mat_bf2ss_arr
     return mu_vals
+
+
+@njit(parallel=True, cache=True)
+def calc_partial_solar_disc(cos_i, r_sun__deg):
+    """ Calculate the partial solar disc illumination.
+
+    Parameters
+    ----------
+    cos_i : 2-D array
+        The cosine of the incidence angle.
+
+    r_sun__deg : float
+        The size of the solar disc in degrees.
+
+    Return
+    ------
+    h_r : 2-D array
+        The partial solar disc illumination.
+    """
+    cos_i_max = np.cos((90 - r_sun__deg)*D2R)
+    cos_i_min = np.cos((90 + r_sun__deg)*D2R)
+    ycfactor = 2/3*r_sun__deg
+    for i in nb.prange(cos_i.shape[0]):
+        for j in range(cos_i.shape[1]):
+            _cos_i = cos_i[i, j]
+            if (_cos_i < cos_i_min):
+                cos_i[i, j] = 0
+            elif (_cos_i > cos_i_max):
+                continue
+            else:
+                incid = np.arccos(_cos_i)*R2D  # in degree
+                h_r = (90 - incid)/r_sun__deg
+                _th = np.arccos(-h_r)  # in radian
+                _hrsq = 1 - h_r*h_r
+                _hrfactor = h_r*np.sqrt(_hrsq)
+                y_c = ycfactor*(_hrsq)**(3/2)/(_th + _hrfactor)
+                frac = (_th + _hrfactor)/np.pi
+                cos_i[i, j] = frac*np.cos((incid - y_c)*D2R)
 
 
 @njit(cache=True)
