@@ -9,9 +9,9 @@ from astropy.time import Time
 from astroquery.jplhorizons import Horizons
 from astroquery.jplsbdb import SBDB
 from scipy.interpolate import (RectBivariateSpline, RegularGridInterpolator,
-                               UnivariateSpline, interp1d)
+                               interp1d)
 
-from .constants import AU, GG_Q, NOUNIT, PI, R2D, TIU, FLAMU
+from .constants import FLAMU, GG_Q, NOUNIT, PI, R2D, TIU
 from .relations import (p2w, solve_Gq, solve_pAG, solve_pDH, solve_rmrho,
                         solve_temp_eqm, solve_thermal_par)
 from .scat.phase import iau_hg_model
@@ -568,6 +568,7 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             r_sun_disc: float = None,
             skip_spl: bool = False,
             skip_musun: bool = True,
+            use_surfmean: bool = False,
             verbose: bool = False
     ) -> None:
         """ Calculate the temperature using TPM
@@ -610,6 +611,12 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             If `True`, skips `mu_suns` calculation if possible (i.e., when
             `self.mu_suns` is not `None`). Useful for certain cases. Default is
             `True`.
+
+        use_surfmean : bool, optional
+            If `True`, the deepest temperature will be set as the mean of the
+            surface temperature of the previous iteration, to try to guarantee
+            the mathematical condition (time average of surface temp = deepest
+            temp). Maybe useful for very accurate deep temperature calculation.
 
         atol : float, optional
             The absolute tolerance for the iteration to stop. (Stops if the
@@ -655,11 +662,11 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             if u_arr_midnight is None:
                 u_arr[:, :, 0] = _mu_suns**(1/4)
                 # ^ first, same as NEATM.
-                u_arr[:, 0, -1] = np.mean(u_arr[:, 0, :], axis=1)
-                # ^ then, deepest temp = mean (surface)
                 for k in range(self.nlat):
                     u_arr[k, 0, :] = u_arr[k, self.nlon//2, :]*np.exp(-Zarr)
                     # ^ midday temp * exp(-z)
+                u_arr[:, 0, -1] = np.mean(u_arr[:, 0, :], axis=1)
+                # ^ then, deepest temp = mean (surface)
             else:
                 for k in range(self.nlat):
                     u_arr[k, 0, :] = u_arr_midnight[k, :]
@@ -672,6 +679,7 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
                 min_iter=self.min_iter,
                 max_iter=self.max_iter,
                 permanent_shadow_u=permanent_shadow_u,
+                use_surfmean=use_surfmean,
                 atol=atol
             )
 
