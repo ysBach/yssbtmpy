@@ -757,9 +757,10 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             will be done for wavelengths of ``wlen_min < tm.SOLAR_SPEC[:, 0] <
             wlen_max``. Default is 0 and 1000.
 
-        refl : float, Quantity, optional.
+        refl : float, Quantity, functional optional.
             The reflectance, normalized to 1 at V-band, in linear scale. If not
-            given, it is set to 1 (flat spectrum).
+            given, it is set to 1 (flat spectrum). If given as a function, it
+            should be a function that accepts wavelength (in microns).
 
         Notes
         -----
@@ -777,8 +778,10 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
 
         if refl is None:
             refl = np.ones(wlen__um.size)
-        else:
+        elif isinstance(refl, (int, float, np.ndarray)):
             refl = np.atleast_1d(refl)
+        else:  # assume functional
+            refl = refl(wlen__um)
             # if (refl.size != wlen__um.size):
             #     raise ValueError(
             #         "At the moment, `refl` must be given for all the wavelengths of "
