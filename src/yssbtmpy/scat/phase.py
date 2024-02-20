@@ -59,7 +59,7 @@ def _hgphi12_nb(alpha__deg):
 def iau_hg_model(alphas, gpar=0.15):
     """The IAU HG phase function model in intensity (1 at alpha=0)
     """
-    alphas = to_val(alphas, u.deg)
+    alphas = np.abs(to_val(alphas, u.deg))  # negative alpha has no effect
     hgphi1, hgphi2 = _hgphi12_nb(np.array(alphas))
     return (1 - gpar)*hgphi1 + gpar*hgphi2
 
@@ -95,5 +95,6 @@ def iau_hg(alphas, hmag=0, gpar=0.15, r_hel=1., r_obs=1., return_mag=True):
     """
     inten = iau_hg_model(alphas, gpar)
     if return_mag:
-        return np.atleast_1d(hmag - 2.5*np.log10(inten) + 5*np.log10(r_hel*r_obs))
+        return np.atleast_1d(to_val(hmag, u.mag) - 2.5*np.log10(inten)
+                             + 5*np.log10(to_val(r_hel, u.au)*to_val(r_obs, u.au)))
     return np.atleast_1d(inten/(r_hel*r_obs)**2)
