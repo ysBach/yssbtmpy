@@ -407,17 +407,17 @@ def solve_temp_eqm(
         ps["r_hel"] = np.sqrt(rh__au2)
 
     elif t is None:
-        t4 = ((1 - a)*S1AU/(beam*SIGMA_SB*e*rh__au**2))
+        t4 = ((1 - a)*S1AU/(beam*SIGMA_SB*e*rh__au*rh__au))
         ps["temp_eqm"] = t4**(1/4)
 
     elif a is None:
-        ps["a_bond"] = (1 - t**4*e*SIGMA_SB*beam*rh__au**2/S1AU)
+        ps["a_bond"] = (1 - t**4*e*SIGMA_SB*beam*rh__au*rh__au/S1AU)
 
     elif beam is None:
-        ps["eta_beam"] = (1 - a)*S1AU/(SIGMA_SB*e*rh__au**2*t**4)
+        ps["eta_beam"] = (1 - a)*S1AU/(SIGMA_SB*e*rh__au*rh__au*t**4)
 
     elif e is None:
-        ps["emissivity"] = (1 - a)*S1AU/(SIGMA_SB*beam*rh__au**2*t**4)
+        ps["emissivity"] = (1 - a)*S1AU/(SIGMA_SB*beam*rh__au*rh__au*t**4)
 
     # 4. Convert to astropy.Quantity if needed.
     ps = _setup_pars(pardict=ps, unitdict=udict, to_value=to_value)
