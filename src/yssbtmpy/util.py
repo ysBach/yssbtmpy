@@ -17,7 +17,7 @@ __all__ = [
     "lonlat2cart", "sph2cart", "cart2sph",
     "calc_aspect_ang",
     "mat_ec2fs", "mat_bf2ss",
-    "calc_mu_vals",
+    "calc_mu_vals", "calc_partial_solar_disc_delta_i", "calc_partial_solar_disc",
     "newton_iter_tpm", "calc_uarr_tpm",
     "calc_varr_orbit"
 ]
@@ -72,7 +72,7 @@ def to_quantity(
     ``x`` with dimensionless unscaled unit.
     """
     if isinstance(x, (float, int)):
-        return x*1 if to_value else x*u.Unit(desired)
+        return x*1 if to_value else x << u.Unit(desired)
 
     try:
         return Quantity(x, desired).value if to_value else Quantity(x, desired)
@@ -416,7 +416,7 @@ def calc_aspect_ang(
     cc = np.cos(aspect_ang)*np.cos(aspect_ang_obs)
     ss = np.sin(aspect_ang)*np.sin(aspect_ang_obs)
     cos_dphi = ((cc - np.cos(sign*np.abs(phase_ang)))/ss).value
-    cos_dphi = cos_dphi - np.sign(cos_dphi)*1.e-10
+    cos_dphi = cos_dphi - np.sign(cos_dphi)*1.e-6
     dlon_sol_obs = sign*np.rad2deg(np.arccos(cos_dphi))*u.deg
     # self.pos_sub_sol = (self.aspect_ang, 180*u.deg)
     # self.pos_sub_obs = (self.aspect_ang_obs, phi_obs)
@@ -615,42 +615,113 @@ def calc_mu_vals(
     return mu_vals
 
 
-@njit(parallel=True)
-def calc_partial_solar_disc(cos_i, r_sun__deg):
+def calc_mu_vals_slope(mu_val_flat, slope, aspect):
+    """ Calculates mu value for sloped surface
+    Molaro+Byrne 2012 JGRE117 Eq. 6
+    """
+    pass
+
+
+def calc_partial_solar_disc_delta_i(incid__deg, r_sun__deg):
     """ Calculate the partial solar disc illumination.
 
     Parameters
     ----------
-    cos_i : 2-D array
-        The cosine of the incidence angle.
+    incid__deg : float
+        The incidence angle in degree.
 
     r_sun__deg : float
         The size of the solar disc in degrees.
 
     Return
     ------
-    h_r : 2-D array
-        The partial solar disc illumination.
+    frac : float
+        The fraction of the solar disc above the horizon.
+    delta_i : float
+        The delta value to correct the incidence angle for the photocenter.
+
+    """
+    _inc = np.array(incid__deg)
+    mask_above = (_inc < 90 - r_sun__deg)
+    mask_below = (_inc > 90 + r_sun__deg)
+    mask = mask_above | mask_below
+    _inc[mask] = 90  # dummy value for the mask
+    ycfactor = 2/3*r_sun__deg  # in degrees
+    h_r = (90 - _inc)/r_sun__deg  # in radian
+    _th = np.arccos(-h_r)  # in radian
+    _hrsq = 1 - h_r*h_r
+    _hrfactor = h_r*np.sqrt(_hrsq)
+    y_c = ycfactor*(_hrsq)**(3/2)/(_th + _hrfactor)
+    frac = (_th + _hrfactor)/np.pi
+    frac[mask_below] = 0
+    frac[mask_above] = 1
+    y_c[mask] = 0
+    return frac, -y_c
+
+
+def calc_partial_solar_disc_range(incid__deg, r_sun__deg, incid_rise__deg, incid_set__deg):
+    """
+    """
+    _inc = np.array(incid__deg)
+    for _i__deg in _inc:
+        if _i__deg < incid_rise__deg:
+            _i__deg = incid_rise__deg
+        elif _i__deg > incid_set__deg:
+            _i__deg = incid_set__deg
+
+
+@njit(parallel=True)
+def calc_partial_solar_disc(cos_i, r_sun__deg):
+    """ Calculate the partial solar disc illumination and update input cos_i
+
+    Parameters
+    ----------
+    cos_i : 2-D array
+        The cosine of the incidence angle array to be updated inplace.
+
+    r_sun__deg : float
+        The size of the solar disc in degrees.
     """
     cos_i_max = np.cos((90 - r_sun__deg)*D2R)
     cos_i_min = np.cos((90 + r_sun__deg)*D2R)
-    ycfactor = 2/3*r_sun__deg
     for i in nb.prange(cos_i.shape[0]):
         for j in range(cos_i.shape[1]):
             _cos_i = cos_i[i, j]
-            if (_cos_i < cos_i_min):
+            if (_cos_i < cos_i_min):  # completely below horizon
                 cos_i[i, j] = 0
-            elif (_cos_i > cos_i_max):
+            elif (_cos_i > cos_i_max):  # completely above horizon
                 continue
             else:
-                incid = np.arccos(_cos_i)*R2D  # in degree
-                h_r = (90 - incid)/r_sun__deg
-                _th = np.arccos(-h_r)  # in radian
-                _hrsq = 1 - h_r*h_r
-                _hrfactor = h_r*np.sqrt(_hrsq)
-                y_c = ycfactor*(_hrsq)**(3/2)/(_th + _hrfactor)
-                frac = (_th + _hrfactor)/np.pi
-                cos_i[i, j] = frac*np.cos((incid - y_c)*D2R)
+                cos_i[i, j] = calc_partial_solar_disc_single(
+                    np.arccos(_cos_i)*R2D,
+                    r_sun__deg=r_sun__deg, cos_i_min=cos_i_min, cos_i_max=cos_i_max
+                )
+
+
+@njit()
+def calc_partial_solar_disc_single(incid__deg, r_sun__deg, cos_i_min=None, cos_i_max=None):
+    """ Calculate the partial solar disc illumination for scalar input
+
+    Parameters
+    ----------
+    incid__deg : float
+        The incidence angle.
+
+    r_sun__deg : float
+        The size of the solar disc in degrees.
+
+    Return
+    ------
+    ill : 2-D array
+        The partial solar disc illumination.
+    """
+    h_r = (90 - incid__deg)/r_sun__deg
+    _th = np.arccos(-h_r)  # in radian
+    _hrsq = 1 - h_r*h_r
+    _hrfactor = h_r*np.sqrt(_hrsq)
+    y_c__deg = 2/3*r_sun__deg*(_hrsq)**(3/2)/(_th + _hrfactor)
+    frac = (_th + _hrfactor)/np.pi
+    return frac*np.cos((incid__deg - y_c__deg)*D2R)
 
 
 @njit()
@@ -700,6 +771,7 @@ def calc_mu_val_nb(
     spin_vec_norm: np.ndarray,
     phi__rad: float,
     mat_bf2ss: np.ndarray,
+    r_sun__deg: float = 0,
 ):
     """ Calculates mu value
     """
@@ -708,8 +780,13 @@ def calc_mu_val_nb(
     solar_dir = (mat_bf2ss @ m2 @ m1 @ -(r_vec_norm))
     # Z component = cos i_sun for mu_sun case:
     mu_val = solar_dir[2]
+    if r_sun__deg > 0:
+        calc_partial_solar_disc(mu_val, r_sun__deg=r_sun__deg)
     return mu_val if mu_val > 0. else 0.
 
+
+def propagate_sloped(r_hel_vecs, spin_ecl):
+    pass
 
 # @njit
 # def eph_idx_arr(idarr: np.ndarray, eph_jds: np.ndarray, dt_1: float) -> None:
@@ -925,8 +1002,9 @@ def newton_iter_tpm(
     """
     x0 = newu0_init
     for _ in range(iter_max):
-        f0 = x0*x0*x0*x0 - mu_sun - thdz * (newu1 - x0)
-        slope = 4 * x0*x0*x0 + thdz
+        x03 = x0*x0*x0
+        f0 = x03*x0 - mu_sun - thdz * (newu1 - x0)
+        slope = 4 * x03 + thdz
         delta = f0 / slope
 
         # It is good if the iteration ends here:
@@ -1001,13 +1079,15 @@ def calc_uarr_tpm(
     """
     ncolat, ntimep1, ndepth = u_arr.shape
     ntime = ntimep1 - 1
-    dtdz2 = dlon/dZ**2
+    dtdz2 = dlon/(dZ*dZ)
     thdz = thpar/dZ
 
     mu_sun_min = np.cos((90 - min_elev__deg)*D2R)
+    iters = []
     # For each colatitude, parallel calculation is possible!!!
     # So use numba's prange rather than range:
     for i_lat in nb.prange(ncolat):
+        _musuns_ilat = mu_suns[i_lat, :]
         if permanent_shadow_u is not None:
             # Check whether the latitude is under permanent shadow.
             permanent_shadow = True
@@ -1015,7 +1095,7 @@ def calc_uarr_tpm(
                 # If the sun reaches above ``min_elev__deg``, i.e.,
                 #   mu_sun = cos(90 - EL_sun) > cos(90 - min_elev__deg)
                 # at least once, it's not a permanent shadow:
-                if mu_suns[i_lat, k] > mu_sun_min:
+                if _musuns_ilat[k] > mu_sun_min:
                     # If sun rises > min_elev__deg
                     permanent_shadow = False
                     break
@@ -1046,7 +1126,7 @@ def calc_uarr_tpm(
                         newu0_init=u_arr[i_lat, i_t, 0],
                         newu1=u_arr[i_lat, i_t + 1, 1],
                         thdz=thdz,
-                        mu_sun=mu_suns[i_lat, i_t]
+                        mu_sun=_musuns_ilat[i_t]
                     )
 
                     # Deepest cell
@@ -1058,6 +1138,7 @@ def calc_uarr_tpm(
                 discrep = np.abs(u_arr[i_lat, 0, 0] - u_arr[i_lat, -1, 0])
 
                 if i_iter >= min_iter and discrep < atol:
+                    iters.append(i_iter)
                     break
 
                 for i in range(ndepth):
@@ -1065,8 +1146,11 @@ def calc_uarr_tpm(
 
                 if use_surfmean:
                     surf_mean = np.mean(u_arr[i_lat, :, 0])
+        else:
+            i_iter = 0
+        iters.append(i_iter)
 
-    # TODO: Return i_iter?
+    return iters
 
 
 @njit()
@@ -1110,9 +1194,10 @@ def calc_flux_tpm(fluxarr, wlen, tempsurf, mu_obss, colats, dlat, dlon):
         The delta-latitude and -longitude of patches in radian unit.
     """
     dlon_dlat = dlon*dlat
+    # TODO: put area factor here
     for k in nb.prange(len(wlen)):
         wl = wlen[k]*1.e-6  # um to m
-        factor1 = 2*HH*CC**2/wl**5
+        factor1 = 2*HH*CC*CC/wl**5
         factor2 = (HH*CC)/(KB*wl)
         for i in range(tempsurf.shape[0]):
             area_factor = np.sin(colats[i])*dlon_dlat
@@ -1121,3 +1206,52 @@ def calc_flux_tpm(fluxarr, wlen, tempsurf, mu_obss, colats, dlat, dlon):
                 if mu_obs > 0:
                     radiance = factor1/(np.expm1(factor2/tempsurf[i, j]))
                     fluxarr[k] += radiance*mu_obs*area_factor
+
+
+@njit(parallel=True)
+def calc_flux_neatm(fluxarr, wlen, temp_eqm, alpha__deg, nlon, nlat):
+    """ Calculates the fulx at given wlen in W/m^2/m
+
+    Parameters
+    ----------
+    fluxarr : 1-d array
+        The array to be filled with the flux values. Must have the identical
+        length to `wlen`.
+    wlen : 1-d array
+        The wavelength corresponding to `fluxarr`, in um. Both must have the
+        identical length.
+    temp_eqm : float
+        The equilibrium temperature in Kelvin.
+    mu_obs : 2-d array
+        The cosine factor for the emission direction to the observer. The value
+        at `tempsurf[i, j]` must be corresponding to the `mu_obs[i, j]`.
+    colats : 1-d array
+        The co-latitude of the surface (in radians unit). Co-latitude is the
+        angle between the pole (spin) vector and the normal vector of the
+        surface of interest.
+    dlat, dlon : float
+        The delta-latitude and -longitude of patches in radian unit.
+    """
+    dlat__rad = PI/nlat
+    dlon__rad = 2*PI/nlon
+    colats__rad = np.linspace(dlat__rad/2, PI - dlat__rad/2, nlat)
+    sin_colats = np.sin(colats__rad)
+    cos_lon = np.cos(np.linspace(0, 2*PI - dlon__rad, nlon))
+    cos_lon_alpha = np.cos(np.linspace(0, 2*PI - dlon__rad, nlon) + alpha__deg*D2R)
+    ilon_min = nlon//4 - 1      # below this longitude, the Sun is below the horizon
+    ilon_max = 3*(nlon//4) + 1  # above this longitude, the Sun is below the horizon
+
+    area_factor = np.sin(colats__rad)*dlon__rad*dlat__rad
+    for k in nb.prange(len(wlen)):
+        wl = wlen[k]*1.e-6  # um to m
+        factor1 = 2*HH*CC*CC/wl**5
+        factor2 = (HH*CC)/(KB*wl)
+        for i in range(nlat):
+            for j in range(ilon_min, ilon_max + 1):
+                sin_colat = sin_colats[i]
+                cos_isun = -sin_colat*cos_lon[j]
+                cos_iobs = -sin_colat*cos_lon_alpha[j]
+                if cos_iobs > 0 and cos_isun > 0:
+                    tempsurf = temp_eqm*cos_isun**0.25
+                    radiance = factor1/(np.expm1(factor2/tempsurf))
+                    fluxarr[k] += radiance*cos_iobs*area_factor[i]

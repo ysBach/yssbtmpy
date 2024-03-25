@@ -11,20 +11,122 @@ from astroquery.jplsbdb import SBDB
 from scipy.interpolate import (RectBivariateSpline, RegularGridInterpolator,
                                interp1d)
 
-from .constants import FLAMU, GG_Q, NOUNIT, PI, R2D, TIU
+from .constants import FLAMU, GG_Q, GG, NOUNIT, PI, R2D, TIU, AU
 from .relations import (p2w, solve_Gq, solve_pAG, solve_pDH, solve_rmrho,
                         solve_temp_eqm, solve_thermal_par)
 from .scat.phase import iau_hg_model
 from .scat.solar import SOLAR_SPEC
 from .util import (F_OR_ARR, F_OR_Q, F_OR_Q_OR_ARR, add_hdr, calc_aspect_ang,
                    calc_flux_tpm, calc_mu_vals, calc_uarr_tpm, calc_varr_orbit,
-                   lonlat2cart, mat_bf2ss, to_quantity, to_val)
+                   lonlat2cart, mat_bf2ss, to_quantity, to_val, calc_flux_neatm)
 
-__all__ = ["SmallBody", "OrbitingSmallBody"]
+__all__ = ["NEATMBody", "SmallBody", "OrbitingSmallBody"]
 
 # TODO: Maybe we can inherit the Phys class from sbpy to this, so that
 #   the physical data (hmag_vis, Prot, etc) is imported from, e.g., SBDB
 #   by default.
+
+
+_NEATM_FLUX_THER_COEFF = (
+    ((1*u.km).to_value(u.m))**2  # diameter in km to m
+    / 4  # radius to diameter
+    / 1.e+6  # W/m^2/m to W/m^2/um
+) # value = 0.25
+
+
+class NEATMBody():
+    def __init__(self, r_hel=1, r_obs=1, alpha=0, temp_eqm_1au=None, skip_quantity=False):
+        """ Initializes NEATM object
+        Parameters
+        ----------
+        r_hel, r_obs : float, Quantity
+            The heliocentric and observer distance (in au if `float`).
+
+        alpha : float, Quantity
+            The phase angle (in degrees if `float`).
+
+        temp_eqm_1au : float, Quantity
+            The equilibrium temperature at 1 au (in Kelvin if `float`).
+
+        skip_quantity : bool
+            If `True`, the input values are not converted to Quantity.
+            The user is responsible to check the unit consistency.
+        """
+        self.skip_quantity = skip_quantity
+        if self.skip_quantity:
+            self.r_hel = r_hel
+            self.r_obs = r_obs
+            self.alpha = alpha
+            self.temp_eqm_1au = temp_eqm_1au
+            self.temp_eqm = temp_eqm_1au/np.sqrt(r_hel)
+        else:
+            self.r_hel = to_quantity(r_hel, u.au)
+            self.r_obs = to_quantity(r_obs, u.au)
+            self.alpha = to_quantity(alpha, u.deg)
+            self.temp_eqm_1au = to_quantity(temp_eqm_1au, u.K)
+            self.temp_eqm = self.temp_eqm_1au/np.sqrt(self.r_hel.value)
+
+    def calc_flux_ther(self, wlen: float, nlon=360, nlat=90):
+        """
+        The true flux should be scaled by
+            self.flux_ther * (emissivity(lambda)) * (diam_eff/1km)^2
+        and the resulting unit is W/m^2/um.
+        """
+        _wl = np.atleast_1d(wlen)
+        if self.skip_quantity:
+            self.wlen_ther = _wl
+            fluxarr = np.zeros(len(_wl))
+            calc_flux_neatm(
+                fluxarr=fluxarr,
+                wlen=_wl,
+                temp_eqm=self.temp_eqm,
+                alpha__deg=self.alpha,
+                nlon=nlon,
+                nlat=nlat,
+            )
+            _ro__m = self.r_obs * AU
+        else:
+            self.wlen_ther = to_quantity(_wl, u.um)
+            fluxarr = np.zeros(len(_wl))
+            calc_flux_neatm(
+                fluxarr=fluxarr,
+                wlen=self.wlen_ther.to_value(u.um),
+                temp_eqm=self.temp_eqm.to_value(u.K),
+                alpha__deg=self.alpha.to_value(u.deg),
+                nlon=nlon,
+                nlat=nlat,
+            )
+            _ro__m = self.r_obs.value * AU
+
+        self.flux_ther = fluxarr*_NEATM_FLUX_THER_COEFF/(_ro__m*_ro__m)
+        if not self.skip_quantity:
+            self.flux_ther *= FLAMU
+
+
+
+class OrbitingConvexSlope():
+    def __init__(self, thermal_par_1au, spin_ecl, r_hel_vecs, r_obs_vecs,
+                 slope=0*u.deg, azimuth=0*u.deg):
+        """ Initializes orbiting column object
+        Parameters
+        ----------
+        thermal_par_1au
+
+        r_hel_vecs : ndarray
+            The heliocentric position vectors of the column in the unit of au.
+
+        """
+        self.thpar_1au = to_val(thermal_par_1au)
+        self.r_hel_vecs = to_quantity(np.atleast_2d(r_hel_vecs), u.au)
+        self.r_obs_vecs = to_quantity(np.atleast_2d(r_obs_vecs), u.au)
+        self.spin_ecl = to_quantity(spin_ecl, u.deg)
+        self.r_hels = np.linalg.norm(self.r_hel_vecs, axis=1)
+        self.thpars = self.thpar_1au*self.r_hels**1.5
+        self.slope = to_quantity(slope, u.deg)
+        self.azimuth = to_quantity(azimuth, u.deg)
+
+    def propagate(self):
+        pass
 
 
 class SmallBodyMixin():
@@ -318,12 +420,12 @@ class SmallBodyConstTPM():
         self.dZ = dZ
         self.nZ = int(np.around(Zmax/dZ))
 
-    # Check von Neumann stability analysis (See MuellerM PhDT 2007 Sect 3.3.2):
-    # For dy/dt = a d^2y/dx^2, stability requires dt <= dx^2/(2a).
-    # In TPM, du/dtau = 1*d^2u/dz^2, so dtau/dz^2 <= 0.5.
-    # Note that tau = omega*t = t*2pi/Prot = longitude (or rotational phase) in rad
-    #           z = x/ls = depth in thermal skin depth (sqrt(k/rho c omega)) unit
-        if (self.dlon/(self.dZ)**2) > 0.5:
+        # Check von Neumann stability analysis (See MuellerM PhDT 2007 Sect 3.3.2):
+        # For dy/dt = a d^2y/dx^2, stability requires dt <= dx^2/(2a).
+        # In TPM, du/dtau = 1*d^2u/dz^2, so dtau/dz^2 <= 0.5.
+        # Note that tau = omega*t = t*2pi/Prot = longitude (or rotational phase) in rad
+        #           z = x/ls = depth in thermal skin depth (sqrt(k/rho c omega)) unit
+        if np.any(self.dlon/(self.dZ)**2 > 0.5):
             raise ValueError(
                 "dlon/dZ^2 > 0.5 !! The solution may not converge. Tune such that "
                 + f"nlon > 4*PI/dZ^2 ({4*PI/self.dZ**2 = :.2f})."
@@ -660,28 +762,36 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             warn(f"{self.thermal_par=:6.4e} too small: Ignore TPM, run NEATM-like calculation.")
         else:
             if u_arr_midnight is None:
-                u_arr[:, :, 0] = _mu_suns**(1/4)
-                # ^ first, same as NEATM.
-                for k in range(self.nlat):
-                    u_arr[k, 0, :] = u_arr[k, self.nlon//2, :]*np.exp(-Zarr)
+                u_neatm = _mu_suns**(1/4)
+                u_neatm_mean = np.mean(u_neatm, axis=1)
+                print(f"u_neatm_mean = {u_neatm_mean}")
+                for k, _umean in enumerate(u_neatm_mean):
+                    u_arr[k, :, :] = _umean  # - 0.5*np.exp(-Zarr/np.sqrt(2))*np.cos(Zarr/np.sqrt(2))
+                # u_arr[:, 0, -1] = u_neatm_mean
+                # u_arr[:, :, 0] = _mu_suns**(1/4)
+                # # ^ first, same as NEATM.
+                # for k in range(self.nlat):
+                #     u_arr[k, 0, :] = u_arr[k, self.nlon//4*3, 0]*np.exp(-Zarr)
                     # ^ midday temp * exp(-z)
-                u_arr[:, 0, -1] = np.mean(u_arr[:, 0, :], axis=1)
+                # u_arr[:, 0, -1] = np.mean(u_arr[:, 0, :], axis=1)  # FIXME: Wrong axis...
                 # ^ then, deepest temp = mean (surface)
             else:
                 for k in range(self.nlat):
                     u_arr[k, 0, :] = u_arr_midnight[k, :]
-            calc_uarr_tpm(
-                u_arr,
-                thpar=self.thermal_par.value,
-                dlon=self.dlon,
-                dZ=self.dZ,
-                mu_suns=self.mu_suns,
-                min_iter=self.min_iter,
-                max_iter=self.max_iter,
-                permanent_shadow_u=permanent_shadow_u,
-                use_surfmean=use_surfmean,
-                atol=atol
-            )
+
+            if max_iter > 0:
+                self.tpm_niter = calc_uarr_tpm(
+                    u_arr,
+                    thpar=self.thermal_par.value,
+                    dlon=self.dlon,
+                    dZ=self.dZ,
+                    mu_suns=self.mu_suns,
+                    min_iter=self.min_iter,
+                    max_iter=self.max_iter,
+                    permanent_shadow_u=permanent_shadow_u,
+                    use_surfmean=use_surfmean,
+                    atol=atol
+                )
 
         if not skip_spl:
             try:
