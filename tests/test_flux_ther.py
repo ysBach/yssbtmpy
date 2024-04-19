@@ -119,22 +119,31 @@ def test_eros_figure():
     sb = tm.SmallBody()
     sb.set_ecl(
         r_hel=1.134, r_obs=0.153,
-        hel_ecl_lon=117, hel_ecl_lat=1.45,
-        obs_ecl_lon=113, obs_ecl_lat=10.7,
+        hel_ecl_lon=0, hel_ecl_lat=0,
+        obs_ecl_lon=0, obs_ecl_lat=0,
         alpha=9.9
     )
-    sb.set_optical(slope_par=0.15, p_vis=0.2, diam_eff=23.6*u.km, hmag_vis=tm.pD2H(0.2, 23.6*u.km))
+    sb.set_optical(slope_par=0.23, p_vis=0.2, diam_eff=23.6*u.km, hmag_vis=tm.pD2H(0.2, 23.6*u.km))
     sb.set_spin(spin_ecl_lon=0, spin_ecl_lat=90, rot_period=1)
-    sb.set_thermal(ti=0.1, emissivity=0.9, eta_beam=1.05)
+    sb.set_thermal(ti=0.0, emissivity=1, eta_beam=1.05)
     sb.set_tpm(nlon=360, nlat=90, Zmax=10, dZ=0.2)
     print(sb.thermal_par)
     sb.calc_temp(in_kelvin=True)
     sb.calc_flux_ther(WLEN)
     sb.calc_flux_refl(refl=1., wlen_min=WLEN.min(), wlen_max=WLEN.max())
 
-    ax.plot(WLEN.to_value(u.um), sb.flux_refl, "b:", label="refl (NEATM)")
-    ax.plot(WLEN.to_value(u.um), sb.flux_ther, "k:", label="ther (NEATM)")
-    ax.plot(WLEN.to_value(u.um), sb.flux_refl+sb.flux_ther, "r-", label="NEATM (Harris 1998)")
+    ax.plot(WLEN.to_value(u.um), sb.flux_refl, "b:", label="TPM (TI=0) refl (this)")
+    ax.plot(WLEN.to_value(u.um), sb.flux_ther, "k:", lw=1.3, label="TPM (TI=0) ther (this)")
+    ax.plot(WLEN.to_value(u.um), sb.flux_refl+sb.flux_ther, "r-", label="TPM (TI=0) (this; using Harris 1998)")
+
+    teqm1 = tm.T_eqm(
+        a_bond=tm.pG2A(0.20, 0.23), eta_beam=1.05, r_hel=1, emissivity=1
+    )
+    sb_neatm = tm.NEATMBody(
+        r_hel=1.134, r_obs=0.153, alpha=9.9, temp_eqm_1au=teqm1
+    )
+    sb_neatm.calc_flux_ther(WLEN)
+    ax.plot(WLEN.to_value(u.um), sb_neatm.flux_ther*23.6**2, "r--", lw=1,label="NEATM (this; using Harris 1998)")
 
     # Now, using TPM parameters by Hinkle et al. 2022 Icar. 382, 114939.
     #   ti=100 because we have no roughness model (see lowest χ2 models in their Figs. 4).
@@ -160,7 +169,8 @@ def test_eros_figure():
     sb_tpm.calc_temp(in_kelvin=True)
     sb_tpm.calc_flux_ther(WLEN)
     sb_tpm.calc_flux_refl(refl=1., wlen_min=WLEN.min(), wlen_max=WLEN.max())
-    ax.plot(WLEN.to_value(u.um), sb_tpm.flux_refl+sb_tpm.flux_ther, "b-", label="TPM (Hinkle 2022)")
+
+    ax.plot(WLEN.to_value(u.um), sb_tpm.flux_refl+sb_tpm.flux_ther, "b-", label="TPM (this; using Hinkle 2022)")
 
     ax.errorbar(wlen_um, flam_max, yerr=flam_err,
                 fmt='o', c="r", ms=2, capsize=1, elinewidth=1, label="flux_max")
