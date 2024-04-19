@@ -1016,6 +1016,24 @@ def newton_iter_tpm(
     return x0
 
 
+@njit
+def check_perm_shadow(mu_suns_lat, mu_sun_min):
+    # Check whether the latitude is under permanent shadow.
+    permanent_shadow = True
+    for k in range(mu_suns_lat.size):
+        # If the sun reaches above ``min_elev__deg``, i.e.,
+        #   mu_sun = cos(90 - EL_sun) > cos(90 - min_elev__deg)
+        # at least once, it's not a permanent shadow:
+        if mu_suns_lat[k] > mu_sun_min:
+            # If sun rises > min_elev__deg
+            permanent_shadow = False
+            break
+    return permanent_shadow
+
+
+def _calc_uarr_tpm():
+    pass
+
 # Tested on 15"MBP2018: speed is by ~10 times faster if parallel is used.
 @njit(parallel=True)
 def calc_uarr_tpm(
@@ -1029,6 +1047,7 @@ def calc_uarr_tpm(
         min_elev__deg: float = 0.,
         permanent_shadow_u: float = 0,
         use_surfmean: bool = False,
+        tpm_niters: list = None,
         atol: float = 1.e-8
 ):
     """Calculates the u value in usual TPM.
@@ -1058,7 +1077,7 @@ def calc_uarr_tpm(
         permanently shadowed region.
         The latitudinal band is assumed to be in a permanent shadow if the sun
         is always below this elevation, and all the temperature on this
-        latitude is just set as a constant given by `permanent_shadow_u in the
+        latitude is just set as a constant given by `permanent_shadow_u` in the
         unit of ``temp_eqm``.
 
     permanent_shadow_u : float
@@ -1076,37 +1095,35 @@ def calc_uarr_tpm(
     atol : float, optional
         The absolute tolerance for the iteration to stop. (Stops if the T/T_EQM
         < `atol`).
+
+    Returns
+    -------
+    iters : list
+        The number of iterations for each latitude. If the latitude is in a
+        permanent shadow, the value will be -1.
     """
     ncolat, ntimep1, ndepth = u_arr.shape
     ntime = ntimep1 - 1
     dtdz2 = dlon/(dZ*dZ)
     thdz = thpar/dZ
 
-    mu_sun_min = np.cos((90 - min_elev__deg)*D2R)
-    iters = []
-    # For each colatitude, parallel calculation is possible!!!
+    mu_sun_min = np.cos((90 - min_elev__deg)*D2R) if min_elev__deg > 0. else 0.
+    mu_sun_min += 1.e-8  # add a very small number.
+
+    use_const_u_for_perm_shadow = permanent_shadow_u is not None
+    # For each coatitude, parallel calculation is possible!!!
     # So use numba's prange rather than range:
     for i_lat in nb.prange(ncolat):
         _musuns_ilat = mu_suns[i_lat, :]
-        if permanent_shadow_u is not None:
-            # Check whether the latitude is under permanent shadow.
-            permanent_shadow = True
-            for k in range(ntime):
-                # If the sun reaches above ``min_elev__deg``, i.e.,
-                #   mu_sun = cos(90 - EL_sun) > cos(90 - min_elev__deg)
-                # at least once, it's not a permanent shadow:
-                if _musuns_ilat[k] > mu_sun_min:
-                    # If sun rises > min_elev__deg
-                    permanent_shadow = False
-                    break
-            if permanent_shadow:
-                for i_t in range(ntimep1):
-                    for i_dep in range(ndepth):
-                        u_arr[i_lat, i_t, i_dep] = permanent_shadow_u
-        else:
-            permanent_shadow = False
+        permanent_shadow = False
+        if use_const_u_for_perm_shadow:
+            permanent_shadow = check_perm_shadow(_musuns_ilat, mu_sun_min)
 
-        if not permanent_shadow:
+        if permanent_shadow:
+            u_arr[i_lat, :, :] = permanent_shadow_u
+            i_iter = -1
+
+        else:
             discrep = 1.
             if use_surfmean:
                 surf_mean = np.mean(u_arr[i_lat, :, 0])
@@ -1126,7 +1143,7 @@ def calc_uarr_tpm(
                         newu0_init=u_arr[i_lat, i_t, 0],
                         newu1=u_arr[i_lat, i_t + 1, 1],
                         thdz=thdz,
-                        mu_sun=_musuns_ilat[i_t]
+                        mu_sun=mu_suns[i_lat, i_t]
                     )
 
                     # Deepest cell
@@ -1138,7 +1155,6 @@ def calc_uarr_tpm(
                 discrep = np.abs(u_arr[i_lat, 0, 0] - u_arr[i_lat, -1, 0])
 
                 if i_iter >= min_iter and discrep < atol:
-                    iters.append(i_iter)
                     break
 
                 for i in range(ndepth):
@@ -1146,11 +1162,8 @@ def calc_uarr_tpm(
 
                 if use_surfmean:
                     surf_mean = np.mean(u_arr[i_lat, :, 0])
-        else:
-            i_iter = 0
-        iters.append(i_iter)
 
-    return iters
+        tpm_niters[i_lat] = i_iter
 
 
 @njit()
