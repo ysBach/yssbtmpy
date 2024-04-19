@@ -35,7 +35,7 @@ _NEATM_FLUX_THER_COEFF = (
 
 
 class NEATMBody():
-    def __init__(self, r_hel=1, r_obs=1, alpha=0, temp_eqm_1au=None, skip_quantity=False):
+    def __init__(self, r_hel=1, r_obs=1, alpha=0, temp_eqm_1au=400, skip_quantity=False):
         """ Initializes NEATM object
         Parameters
         ----------
@@ -764,23 +764,17 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             if u_arr_midnight is None:
                 u_neatm = _mu_suns**(1/4)
                 u_neatm_mean = np.mean(u_neatm, axis=1)
-                print(f"u_neatm_mean = {u_neatm_mean}")
+                u_arr[:, :, 0] = u_neatm
                 for k, _umean in enumerate(u_neatm_mean):
-                    u_arr[k, :, :] = _umean  # - 0.5*np.exp(-Zarr/np.sqrt(2))*np.cos(Zarr/np.sqrt(2))
-                # u_arr[:, 0, -1] = u_neatm_mean
-                # u_arr[:, :, 0] = _mu_suns**(1/4)
-                # # ^ first, same as NEATM.
-                # for k in range(self.nlat):
-                #     u_arr[k, 0, :] = u_arr[k, self.nlon//4*3, 0]*np.exp(-Zarr)
-                    # ^ midday temp * exp(-z)
-                # u_arr[:, 0, -1] = np.mean(u_arr[:, 0, :], axis=1)  # FIXME: Wrong axis...
-                # ^ then, deepest temp = mean (surface)
+                    u_arr[k, 0, :] = _umean - 0.001*np.exp(-Zarr/np.sqrt(2))*np.cos(Zarr/np.sqrt(2))
+                    # n=1 term in the analytical solution with a_1 (coeff) = arbitrary
             else:
                 for k in range(self.nlat):
                     u_arr[k, 0, :] = u_arr_midnight[k, :]
 
             if max_iter > 0:
-                self.tpm_niter = calc_uarr_tpm(
+                self.tpm_niter = np.zeros(self.nlat, dtype=int)
+                calc_uarr_tpm(
                     u_arr,
                     thpar=self.thermal_par.value,
                     dlon=self.dlon,
@@ -790,8 +784,11 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
                     max_iter=self.max_iter,
                     permanent_shadow_u=permanent_shadow_u,
                     use_surfmean=use_surfmean,
+                    tpm_niters=self.tpm_niter,
                     atol=atol
                 )
+            else:
+                self.tpm_niter = np.zeros(self.nlat, dtype=int)
 
         if not skip_spl:
             try:
@@ -860,7 +857,7 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
                           / 1.e+6)  # W/m^2/**um**
         # See, e.g., Eq. 19 of Myhrvold 2018 Icarus, 303, 91.
 
-    def calc_flux_refl(self, wlen_min=0, wlen_max=1000, refl: F_OR_ARR = None):
+    def calc_flux_refl(self, wlen_min=0, wlen_max=1000, refl: F_OR_ARR = None, phase_factor=None):
         """
         wlen_min, wlen_max : float, Quantity, optional.
             The wavelength in microns (if `float`) to be used. The calculation
@@ -887,7 +884,7 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
         wlen__um = self.wlen_refl.value
 
         if refl is None:
-            refl = np.ones(wlen__um.size)
+            refl = 1
         elif isinstance(refl, (int, float, np.ndarray)):
             refl = np.atleast_1d(refl)
         else:  # assume functional
@@ -902,9 +899,9 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             #         + " >>> refl = UnivariateSpline(_w, _l, k=3, s=0, ext='const')"
             #         + "(tm.SOLAR_SPEC[:, 0])"
             #     )
-
-        phase_factor = iau_hg_model(alphas=self.phase_ang.to_value(u.deg),
-                                    gpar=self.slope_par.value)
+        if phase_factor is None:
+            phase_factor = iau_hg_model(alphas=self.phase_ang.to_value(u.deg),
+                                        gpar=self.slope_par.value)
         self.flux_refl = (SOLAR_SPEC[wlen_mask, 1]/(self.r_hel.to_value(u.au))**2
                           * refl*self.p_vis
                           * (self.radi_eff.to_value(u.m))**2
