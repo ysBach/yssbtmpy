@@ -35,7 +35,7 @@ _NEATM_FLUX_THER_COEFF = (
 
 
 class NEATMBody():
-    def __init__(self, r_hel=1, r_obs=1, alpha=0, temp_eqm_1au=400, skip_quantity=False):
+    def __init__(self, r_hel=1, r_obs=1, alpha=0, temp_eqm_1au=400, temp_eqm=None, skip_quantity=False):
         """ Initializes NEATM object
         Parameters
         ----------
@@ -47,24 +47,46 @@ class NEATMBody():
 
         temp_eqm_1au : float, Quantity
             The equilibrium temperature at 1 au (in Kelvin if `float`).
+            If `None`, it is calculated from `temp_eqm`. One and only one of
+            `temp_eqm_1au` and `temp_eqm` must be given.
+            Default is 400 K.
+
+        temp_eqm : float, Quantity
+            The equilibrium temperature at the heliocentric distance (in Kelvin
+            if `float`). If `None`, it is calculated from `temp_eqm_1au`.
+            One and only one of `temp_eqm_1au` and `temp_eqm` must be given.
+            Default is `None`, which means it is calculated from `temp_eqm_1au`.
 
         skip_quantity : bool
             If `True`, the input values are not converted to Quantity.
             The user is responsible to check the unit consistency.
         """
         self.skip_quantity = skip_quantity
+        if not ((temp_eqm_1au is None) ^ (temp_eqm is None)):
+            raise ValueError(
+                "One and only one of `temp_eqm_1au` and `temp_eqm` must be given."
+            )
+
         if self.skip_quantity:
             self.r_hel = r_hel
             self.r_obs = r_obs
             self.alpha = alpha
-            self.temp_eqm_1au = temp_eqm_1au
-            self.temp_eqm = temp_eqm_1au/np.sqrt(r_hel)
+            if temp_eqm is None:
+                self.temp_eqm_1au = temp_eqm_1au
+                self.temp_eqm = temp_eqm_1au/np.sqrt(r_hel)
+            else:
+                self.temp_eqm = temp_eqm
+                self.temp_eqm_1au = temp_eqm*np.sqrt(r_hel)
         else:
             self.r_hel = to_quantity(r_hel, u.au)
             self.r_obs = to_quantity(r_obs, u.au)
             self.alpha = to_quantity(alpha, u.deg)
-            self.temp_eqm_1au = to_quantity(temp_eqm_1au, u.K)
-            self.temp_eqm = self.temp_eqm_1au/np.sqrt(self.r_hel.value)
+            if temp_eqm is None:
+                self.temp_eqm_1au = to_quantity(temp_eqm_1au, u.K)
+                self.temp_eqm = self.temp_eqm_1au/np.sqrt(self.r_hel.value)
+            else:
+                self.temp_eqm = to_quantity(temp_eqm, u.K)
+                self.temp_eqm_1au = self.temp_eqm*np.sqrt(self.r_hel.value)
 
     def calc_flux_ther(self, wlen: float, nlon=360, nlat=90):
         """
@@ -101,6 +123,10 @@ class NEATMBody():
         self.flux_ther = fluxarr*_NEATM_FLUX_THER_COEFF/(_ro__m*_ro__m)
         if not self.skip_quantity:
             self.flux_ther *= FLAMU
+        return self.flux_ther
+
+    def calc_flux_refl(self, wlen):
+        raise NotImplementedError("This method is not implemented yet.")
 
 
 
@@ -877,39 +903,18 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
         >>> _w = YOUR_WAVELENGTH  # in microns, same size as _r
         >>> refl = UnivariateSpline(_w, _l, k=3, s=0, ext="const")(tm.SOLAR_SPEC[:, 0])
         """
-        wlen_min = to_val(wlen_min, u.um)
-        wlen_max = to_val(wlen_max, u.um)
-        wlen_mask = (SOLAR_SPEC[:, 0] >= wlen_min) & (SOLAR_SPEC[:, 0] <= wlen_max)
-        self.wlen_refl = SOLAR_SPEC[wlen_mask, 0]*u.um
-        wlen__um = self.wlen_refl.value
-
-        if refl is None:
-            refl = 1
-        elif isinstance(refl, (int, float, np.ndarray)):
-            refl = np.atleast_1d(refl)
-        else:  # assume functional
-            refl = refl(wlen__um)
-            # if (refl.size != wlen__um.size):
-            #     raise ValueError(
-            #         "At the moment, `refl` must be given for all the wavelengths of "
-            #         + f"`tm.SOLAR_SPEC`, which is length {SOLAR_SPEC.shape[0]}."
-            #         + f" Now {refl.size=}. Fix it by, e.g.,\n"
-            #         + " >>> _r = YOUR_REFLECTANCE\n"
-            #         + " >>> _w = YOUR_WAVELENGTH  # in microns, same size as _r\n"
-            #         + " >>> refl = UnivariateSpline(_w, _l, k=3, s=0, ext='const')"
-            #         + "(tm.SOLAR_SPEC[:, 0])"
-            #     )
-        if phase_factor is None:
-            phase_factor = iau_hg_model(alphas=self.phase_ang.to_value(u.deg),
-                                        gpar=self.slope_par.value)
-        self.flux_refl = (SOLAR_SPEC[wlen_mask, 1]/(self.r_hel.to_value(u.au))**2
-                          * refl*self.p_vis
-                          * (self.radi_eff.to_value(u.m))**2
-                          / (self.r_obs.to_value(u.m))**2
-                          * phase_factor
-                          ) * FLAMU
-        # SOLAR_SPEC already is for r_hel = 1au, so for r_hel, it should use u.au.
-        # See, e.g., Eq. 19 of Myhrvold 2018 Icarus, 303, 91.
+        self.wlen_refl, self.flux_refl = calc_flux_refl(
+            phase_ang__deg=self.phase_ang.to_value(u.deg),
+            diam_eff__km=self.diam_eff.to_value(u.km),
+            p_vis=self.p_vis,
+            slope_par=self.slope_par.value,
+            r_hel__au=self.r_hel.to_value(u.au),
+            r_obs__au=self.r_obs.to_value(u.au),
+            wlen_min=wlen_min,
+            wlen_max=wlen_max,
+            refl=refl,
+            phase_factor=phase_factor
+        )
 
     def get_temp_1d(self, colat__deg, lon__deg):
         """ Return 1d array of temperature.
