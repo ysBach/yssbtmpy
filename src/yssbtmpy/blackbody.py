@@ -5,7 +5,7 @@ from scipy.integrate import trapezoid
 from .constants import CC, HH, KB, PI, SIGMA_SB, FLAMU
 from .util import to_val
 
-__all__ = ["B_lambda", "flam2jy", "jy2flam", "flam2ab", "jy2ab", "planck_avg"]
+__all__ = ["B_lambda", "flam2jy", "jy2flam", "flam2ab", "jy2ab", "jy2phot", "planck_avg"]
 
 
 def B_lambda(wlen, temperature, normalized=False):
@@ -92,7 +92,38 @@ def jy2ab(jy):
     jy : array-like
         The flux density in [Jy].
     """
-    return -2.5*np.log10(to_val(jy, u.Jy)) + 8.90
+    return -2.5*np.log10(to_val(jy, u.Jy)/3631)
+
+
+def ab2jy(ab):
+    """ Convert flux density from [AB mag] to [Jy].
+    Parameters
+    ----------
+    ab : array-like
+        The flux density in [AB mag].
+    """
+    return 3631*10**(-0.4*to_val(ab, u.mag))
+
+
+def jy2phot(jy):
+    """ Convert flux density from [Jy] to [photon/s/m2].
+    Parameters
+    ----------
+    jy : array-like
+        The flux density in [Jy].
+    """
+    # jy/(hc/wlen) * c/wlen = jy/h
+    return to_val(jy, u.Jy)/HH*1.e-26
+
+
+def ab2phot(ab):
+    """ Convert flux density from [AB mag] to [photon/s/m2/um].
+    Parameters
+    ----------
+    ab : array-like
+        The flux density in [AB mag].
+    """
+    return jy2phot(ab2jy(to_val(ab, u.mag)))
 
 
 def planck_avg(wlen, val, temp, use_sb=False):
