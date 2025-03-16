@@ -20,7 +20,7 @@ from .util import (F_OR_ARR, F_OR_Q, F_OR_Q_OR_ARR, add_hdr, calc_aspect_ang,
                    calc_flux_tpm, calc_mu_vals, calc_uarr_tpm, calc_varr_orbit,
                    lonlat2cart, mat_bf2ss, to_quantity, to_val, calc_flux_neatm)
 
-__all__ = ["NEATMBody", "SmallBody", "OrbitingSmallBody"]
+__all__ = ["calc_flux_refl", "NEATMBody", "SmallBody", "OrbitingSmallBody"]
 
 # TODO: Maybe we can inherit the Phys class from sbpy to this, so that
 #   the physical data (hmag_vis, Prot, etc) is imported from, e.g., SBDB
@@ -32,6 +32,87 @@ _NEATM_FLUX_THER_COEFF = (
     / 4  # radius to diameter
     / 1.e+6  # W/m^2/m to W/m^2/um
 ) # value = 0.25
+
+def calc_flux_refl(
+    phase_ang__deg, diam_eff__km, p_vis, solar_spec=SOLAR_SPEC,
+    slope_par=0.15, r_hel__au=1, r_obs__au=1,
+    wlen_min=0, wlen_max=1000, refl: F_OR_ARR = None, phase_factor=None
+):
+    """
+    Parameters
+    ----------
+    phase_ang__deg : float, Quantity
+        The phase angle in degrees.
+
+    diam_eff__km : float, Quantity
+        The effective diameter in km.
+
+    p_vis : float, Quantity
+        The geometric albedo in the V-band.
+
+    solar_spec : ndarray, optional.
+        The solar spectrum. Default is `tm.SOLAR_SPEC`. Otherwise, it must be
+        a 2D array with the first column as the wavelength in microns and the
+        second column as the flux in W/m^2/um (FLAM unit) measured at the
+        distance of 1 au.
+
+    wlen_min, wlen_max : float, Quantity, optional.
+        The wavelength in microns (if `float`) to be used. The calculation
+        will be done for wavelengths of ``wlen_min < tm.SOLAR_SPEC[:, 0] <
+        wlen_max``. Default is 0 and 1000.
+
+    refl : float, Quantity, functional optional.
+        The reflectance, normalized to 1 at V-band, in linear scale. If not
+        given, it is set to 1 (flat spectrum). If given as a function, it
+        should be a function that accepts wavelength (in microns).
+
+    Notes
+    -----
+    At the moment, this functionality is very limited.
+
+    >>> _r = YOUR_REFLECTANCE
+    >>> _w = YOUR_WAVELENGTH  # in microns, same size as _r
+    >>> refl = UnivariateSpline(_w, _l, k=3, s=0, ext="const")(tm.SOLAR_SPEC[:, 0])
+    """
+    wlen_min = to_val(wlen_min, u.um)
+    wlen_max = to_val(wlen_max, u.um)
+    wlen__um = solar_spec[:, 0]
+    if wlen_min is not None and wlen_max is not None:
+        wlen_mask = (wlen__um >= wlen_min) & (wlen__um <= wlen_max)
+        wlen__um = wlen__um[wlen_mask]
+        flux__flam = solar_spec[wlen_mask, 1]
+    else:
+        flux__flam = solar_spec[:, 1]
+
+    wlen_refl = wlen__um*u.um
+
+    if refl is None:
+        refl = 1
+    elif isinstance(refl, (int, float, np.ndarray)):
+        refl = np.atleast_1d(refl)
+    else:  # assume functional
+        refl = refl(wlen__um)
+        # if (refl.size != wlen__um.size):
+        #     raise ValueError(
+        #         "At the moment, `refl` must be given for all the wavelengths of "
+        #         + f"`tm.solar_spec`, which is length {solar_spec.shape[0]}."
+        #         + f" Now {refl.size=}. Fix it by, e.g.,\n"
+        #         + " >>> _r = YOUR_REFLECTANCE\n"
+        #         + " >>> _w = YOUR_WAVELENGTH  # in microns, same size as _r\n"
+        #         + " >>> refl = UnivariateSpline(_w, _l, k=3, s=0, ext='const')"
+        #         + "(tm.solar_spec[:, 0])"
+        #     )
+    if phase_factor is None:
+        phase_factor = iau_hg_model(alphas=phase_ang__deg, gpar=slope_par)
+    flux_refl = (flux__flam/(r_hel__au)**2
+                 * refl*p_vis
+                 * (diam_eff__km*500)**2  # *500 is for *1000/2
+                 / (r_obs__au*AU)**2
+                 * phase_factor
+                 ) * FLAMU
+    # solar_spec already is for r_hel = 1au, so for r_hel, it should use u.au.
+    # See, e.g., Eq. 19 of Myhrvold 2018 Icarus, 303, 91.
+    return wlen_refl, flux_refl
 
 
 class NEATMBody():
