@@ -497,9 +497,24 @@ class SmallBodyConstTPM():
     def set_tpm(self, nlon: int = 360, nlat: int = 90, Zmax: float = 10, dZ: float = 0.2,
                 lats: np.ndarray = None):
         """ TPM code related parameters.
-        The attributes here are all non-dimensional!
 
-        If `lats` is not None, `nlat` will be ignored.
+        Parameters
+        ----------
+        nlon, nlat : int
+            The number of longitudes and latitudes. Default is 360 and 90.
+
+        Zmax : float
+            The maximum depth in thermal skin depth unit. Default is 10.
+
+        dZ : float
+            The depth increment in thermal skin depth unit. Default is 0.2.
+
+        lats : ndarray
+            The latitudes in degrees. If given, `nlat` will be ignored.
+
+        Notes
+        -----
+        The attributes here are all non-dimensional!
 
         Notes
         -----
@@ -949,11 +964,17 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
         if self.tempsurf is None:
             raise ValueError("tempsurf is None. Please run .calc_temp() first.")
 
+        if self.tempunit != "K":
+            raise TypeError(
+                f"{self.tempunit=} is not 'K'. Turn on `in_kelvin`."
+            )
+
         fluxarr = np.zeros(self.wlen_ther.size, dtype=float)
         calc_flux_tpm(
             fluxarr,
             wlen=self.wlen_ther.value,  # in um
-            tempsurf=self.tempsurf, mu_obss=self.mu_obss,
+            tempsurf=self.tempsurf,
+            mu_obss=self.mu_obss,
             colats=to_val(self.colats, u.rad),
             dlon=self.dlon, dlat=self.dlat
         )
@@ -964,17 +985,25 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
                           / 1.e+6)  # W/m^2/**um**
         # See, e.g., Eq. 19 of Myhrvold 2018 Icarus, 303, 91.
 
-    def calc_flux_refl(self, wlen_min=0, wlen_max=1000, refl: F_OR_ARR = None, phase_factor=None):
+    def calc_flux_refl(self, wlen_min=0, wlen_max=1000, refl: F_OR_ARR = None, phase_factor=None,
+                       solar_spec=SOLAR_SPEC):
         """
         wlen_min, wlen_max : float, Quantity, optional.
             The wavelength in microns (if `float`) to be used. The calculation
             will be done for wavelengths of ``wlen_min < tm.SOLAR_SPEC[:, 0] <
             wlen_max``. Default is 0 and 1000.
+            Set to `None` to use the full range of the solar spectrum.
 
         refl : float, Quantity, functional optional.
             The reflectance, normalized to 1 at V-band, in linear scale. If not
             given, it is set to 1 (flat spectrum). If given as a function, it
             should be a function that accepts wavelength (in microns).
+
+        solar_spec : ndarray, optional.
+            The solar spectrum. If not given, the default is ``tm.SOLAR_SPEC``.
+            If given, it should be a 2D array with the first column as
+            wavelength in microns and the second column as flux in FLAM_SI
+            (W/m^2/um).
 
         Notes
         -----
@@ -988,6 +1017,7 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             phase_ang__deg=self.phase_ang.to_value(u.deg),
             diam_eff__km=self.diam_eff.to_value(u.km),
             p_vis=self.p_vis,
+            solar_spec=solar_spec,
             slope_par=self.slope_par.value,
             r_hel__au=self.r_hel.to_value(u.au),
             r_obs__au=self.r_obs.to_value(u.au),
