@@ -1,12 +1,12 @@
 import numpy as np
 from astropy import units as u
-from numba import njit
+import numba as nb
 from scipy.interpolate import CloughTocher2DInterpolator
 
 from ..constants import D2R
 from ..util import to_val
 
-__all__ = ["hapke_k_theta_phase", "iau_hg_model", "iau_hg"]
+__all__ = ["hapke_k_theta_phase", "iau_hg_model", "iau_hg_mag"]
 
 _HAPKE_K_VALS = np.array([
     [1.00, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000],
@@ -43,58 +43,113 @@ hapke_k_theta_phase = CloughTocher2DInterpolator(
 )
 
 
-@njit
-def _hgphi12_nb(alpha__deg):
-    sin_a = np.sin(alpha__deg*D2R)
-    f_a = sin_a/(0.119+1.341*sin_a-0.754*sin_a*sin_a)
-    tan_a_half = np.tan(alpha__deg*D2R*0.5)
-    w = np.exp(-90.56*tan_a_half*tan_a_half)
-    phi1_s = 1 - 0.986*f_a
-    phi2_s = 1 - 0.238*f_a
-    phi1_l = np.exp(-3.332*tan_a_half**0.631)
-    phi2_l = np.exp(-1.862*tan_a_half**1.218)
-    return (w*phi1_s + (1-w)*phi1_l, w*phi2_s + (1-w)*phi2_l)
+_D2R = np.pi / 180.0
 
 
-def iau_hg_model(alphas, gpar=0.15):
-    """The IAU HG phase function model in intensity (1 at alpha=0)
-    """
-    alphas = np.abs(to_val(alphas, u.deg))  # negative alpha has no effect
-    hgphi1, hgphi2 = _hgphi12_nb(np.array(alphas))
-    return (1 - gpar)*hgphi1 + gpar*hgphi2
 
-
-def iau_hg(alphas, hmag=0, gpar=0.15, r_hel=1., r_obs=1., return_mag=True):
-    """The IAU HG phase function, w.r.t. the absolute magnitude geometry
+# numba makes it ~3x faster than the pure numpy version.
+@nb.njit(fastmath=True, cache=False)
+def iau_hg_model(alpha, gpar=0.15):
+    """The IAU HG phase function model in intensity (1 at alpha=0).
 
     Parameters
     ----------
+    alpha__deg : array_like
+        The phase angle (Sun-Target-Observer angle) in degrees.
 
-    alphas : array-like
-        The phase angles (in degree if not `~Quantity`.
+    gpar : float, optional
+        The slope parameter ($G$) in the IAU H, G modeling. See Notes.
+        By default ``0.15``.
 
-    hmag : float
-        The absolute magnitude of the object. Ignored if `return_mag` is
-        `False`.
-        Default is ``0``.
+    Notes
+    -----
+    Semi-empirical model of the phase function of the Moon, asteroids, and
+    other (airless) solar system objects. The phase function defined at
+    $(0^\circ \le \alpha \le 120^\circ)$ for the phase angle $\alpha$. It
+    is given by the following equation:
 
-    gpar : float
-        The slope parameter of the phase function in IAU HG model.
-        Default is ``0.15``.
+    .. math::
+        \Phi_\mathrm{HG}(\alpha, G) = G \Phi_{HG1}(\alpha) + (1-G) \Phi_{HG2}(\alpha)
 
-    r_hel, r_obs : float or `~Quantity`
-        The heliocentric and observer-centric distance. In au if not Quantity.
+    where
 
-    return_mag : bool
-        Whether to return the magnitude. If `True`, the magnitude (`hmag` minus
-        effects of phase function and distances) is returned. If `False`,
-        `hmag` is ignored and the intensity ratio (intensity at the `alphas`
-        divided by the intensity at alpha=0) is returned.
-        Default is ``True``.
+    .. math::
+        \Phi_{HG i}(\alpha) = W \left ( 1-\frac{C_i \sin \alpha}{0.119+1.341 \sin \alpha-0.754 \sin ^2 \alpha} \right )
+        + (1 - W) \times \exp \left \{ -A_i \left [ \tan \frac{\alpha}{2} \right ]^{B_i} \right \}
 
+    and
+
+    .. math::
+        W(\alpha) = \exp \left \{ -90.56 \tan^2 \frac{\alpha}{2} \right \}
+
+    The parameters $A_i$, $B_i$, and $C_i$ are given by:
+
+    .. math::
+        A_1, A_2 &= 3.332, 1.862 \sep
+        B_1, B_2 = 0.631, 1.218 \sep
+        C_1, C_2 = 0.986, 0.238
+
+    Reference: Bowell et al. 1989
+    https://ui.adsabs.harvard.edu/abs/1989aste.conf..524B/abstract
     """
-    inten = iau_hg_model(alphas, gpar)
-    if return_mag:
-        return np.atleast_1d(to_val(hmag, u.mag) - 2.5*np.log10(inten)
-                             + 5*np.log10(to_val(r_hel, u.au)*to_val(r_obs, u.au)))
-    return np.atleast_1d(inten/(r_hel*r_obs)**2)
+    n = alpha.shape[0]
+    intensity = np.empty(n, dtype=np.float64)
+    # onemgpar = 1.0 - gpar
+    phi1 = np.empty(n, dtype=np.float64)
+    phi2 = np.empty(n, dtype=np.float64)
+    for i in range(n):
+        # convert degrees to radians
+        ar = np.abs(alpha[i]) * _D2R
+
+        # intermediate trig and weighting terms
+        sa = np.sin(ar)
+        fa = sa / (0.119 + 1.341 * sa - 0.754 * sa * sa)
+        tah = np.tan(ar * 0.5)
+        w = np.exp(-90.56 * tah * tah)
+
+        # smooth (s) and linear (l) components
+        phi1_s = 1.0 - 0.986 * fa
+        phi2_s = 1.0 - 0.238 * fa
+        phi1_l = np.exp(-3.332 * np.power(tah, 0.631))
+        phi2_l = np.exp(-1.862 * np.power(tah, 1.218))
+
+        # mix them
+        # intensity[i] = gpar[i] * (w * phi1_s + (1.0 - w) * phi1_l) + onemgpar[i] * (
+        #     w * phi2_s + (1.0 - w) * phi2_l
+        # )
+        phi1[i] = w * phi1_s + (1.0 - w) * phi1_l
+        phi2[i] = w * phi2_s + (1.0 - w) * phi2_l
+
+    intensity = gpar * phi1 + (1.0 - gpar) * phi2
+    return intensity
+
+
+@nb.njit(fastmath=True, cache=False)
+def iau_hg_mag(hmag, alpha__deg, gpar=0.15, robs=1, rhel=1):
+    """The IAU HG phase function model in magnitudes scale.
+
+    Parameters
+    ----------
+    hmag : float
+        The absolute magnitude of the object.
+
+    alpha__deg : array_like
+        The phase angle (Sun-Target-Observer angle) in degrees.
+
+    gpar : float, optional
+        The slope parameter ($G$) in the IAU H, G modeling. See Notes.
+        By default ``0.15``.
+
+    robs, rhel : float, optional
+        The observer and heliocentric distance in au. By default 1 au.
+
+    Returns
+    -------
+    mag : ndarray
+        The apparent magnitude of the object at the given phase angle.
+    """
+    return (
+        hmag
+        + 5 * np.log10(robs * rhel)
+        - 2.5 * np.log10(iau_hg_model(alpha__deg, gpar))
+    )

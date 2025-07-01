@@ -103,7 +103,7 @@ def calc_flux_refl(
         #         + "(tm.solar_spec[:, 0])"
         #     )
     if phase_factor is None:
-        phase_factor = iau_hg_model(alphas=phase_ang__deg, gpar=slope_par)
+        phase_factor = iau_hg_model(alpha=np.atleast_1d(phase_ang__deg), gpar=slope_par)
     flux_refl = (flux__flam/(r_hel__au)**2
                  * refl*p_vis
                  * (diam_eff__km*500)**2  # *500 is for *1000/2
