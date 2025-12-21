@@ -5,7 +5,11 @@ from scipy.integrate import trapezoid
 from .constants import CC, HH, KB, PI, SIGMA_SB, FLAMU
 from .util import to_val
 
-__all__ = ["B_lambda", "flam2jy", "jy2flam", "flam2ab", "jy2ab", "jy2phot", "planck_avg"]
+__all__ = [
+    "B_lambda", "flam2jy", "jy2flam", "flam2ab",
+    "jy2ab", "ab2jy",
+    "jy2phot", "planck_avg"
+]
 
 
 def B_lambda(wlen, temperature, normalized=False):
