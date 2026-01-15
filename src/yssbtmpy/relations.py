@@ -59,6 +59,20 @@ def _i_should_solve(pardict: dict) -> bool:
 
 
 def rot_omega2h(radps: F_OR_ARR = None, degps: F_OR_ARR = None) -> F_OR_ARR:
+    """ Convert rotational angular velocity to period in hours.
+
+    Parameters
+    ----------
+    radps : float or array-like, optional
+        Angular velocity in rad/s.
+    degps : float or array-like, optional
+        Angular velocity in deg/s.
+
+    Returns
+    -------
+    prot_h : float or array-like
+        Rotational period in hours.
+    """
     if _count_not_None(radps, degps) != 1:
         raise ValueError("One and only one of [radps, degps] must be given.")
 
@@ -70,6 +84,18 @@ def rot_omega2h(radps: F_OR_ARR = None, degps: F_OR_ARR = None) -> F_OR_ARR:
 
 
 def h2rot_omega(hour: F_OR_ARR) -> F_OR_ARR:
+    """ Convert distinct rotational period in hours to angular velocity (rad/s).
+
+    Parameters
+    ----------
+    hour : float or array-like
+        Period in hours.
+
+    Returns
+    -------
+    omega : float or array-like
+        Angular velocity in rad/s.
+    """
     return 2*PI/(hour*3600)
 
 
@@ -79,6 +105,20 @@ def solve_phid(
         to_value: bool = False
 ) -> F_OR_ARR:
     """ Solves for Krumbien phi-scale grain size from micrometer
+
+    Parameters
+    ----------
+    phi : float or array-like, optional
+        The phi-scale size.
+    d : float or array-like, optional
+        The diameter in micrometers.
+    to_value : bool
+        If True, return values only.
+
+    Returns
+    -------
+    dict
+        Dictionary containing 'phi' and 'd'.
     """
     pdict = dict(phi=phi, d=d)
     udict = dict(phi=NOUNIT, d=u.um)
@@ -146,7 +186,7 @@ def solve_Gq(
     Return
     ------
     slope_par, phase_int : float or array-like
-        The the slope parameter and phase integral.
+        The slope parameter and phase integral.
     """
     pdict = dict(slope_par=slope_par, phase_int=phase_int)
     udict = dict(slope_par=NOUNIT, phase_int=NOUNIT)
@@ -381,6 +421,11 @@ def solve_temp_eqm(
     to_value : bool, optional.
         Whether to return in float (value) or `~astropy.Quantity`.
         Defalut is `True`
+
+    Returns
+    -------
+    dict
+        Dictionary containing the solved parameter.
     """
     pdict = dict(temp_eqm=temp_eqm, a_bond=a_bond,
                  eta_beam=eta_beam, r_hel=r_hel, emissivity=emissivity)
@@ -455,6 +500,11 @@ def solve_thermal_par(
     to_value : bool, optional.
         Whether to return in float (value) or `~astropy.Quantity`.
         Defalut is `True`
+
+    Returns
+    -------
+    dict
+        Dictionary containing the solved parameter.
     """
     pdict = dict(thermal_par=thermal_par, ti=ti, rot_period=rot_period,
                  temp_eqm=temp_eqm, emissivity=emissivity)
@@ -510,9 +560,13 @@ def solve_rmrho(
     """ Solves the radius, mass, density relation for a homogeneous spehre.
     Parameters
     ----------
-    radius, mass, mass_den : float, Quantity, or array-like of such, optional
         The radius, mass, and the mass density of the homogeneous sphere to be
         solved. All in SI unit if not Quantity.
+
+    Returns
+    -------
+    dict
+        Dictionary containing the solved parameter.
     """
     pdict = dict(radius=radius, mass=mass, mass_den=mass_den)
     udict = dict(radius=u.m, mass=u.kg, mass_den=u.kg/u.m**3)
@@ -551,9 +605,13 @@ def solve_pw(
 
     Parameters
     ----------
-    rot_period, rot_omega : float, Quantity, or array-like of such, optional.
         The rotational period and rotational angular speed to be solved. If not
         quantity, they are interpreted as SI units (seconds and rad/s).
+
+    Returns
+    -------
+    dict
+        Dictionary containing the solved parameter.
     """
     pdict = dict(rot_period=rot_period, rot_omega=rot_omega)
     udict = dict(rot_period=u.s, rot_omega=1/u.s)

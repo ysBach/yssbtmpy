@@ -21,10 +21,24 @@ __all__ = ["MovingParticle"]
 
 
 def leapfrog_kdk(posvel, dt, acc_func, acc_start=None):
-    """
-    To save time in acceleration calculation, if you give ``acc_start``, it
-    will use it as the acceleration of the starting point, which is the
-    accelration of the ending point of the last iteration.
+    """ Second-order symplectic Leapfrog (Kick-Drift-Kick) integrator.
+
+    Parameters
+    ----------
+    posvel : 2-element list or tuple of ndarray
+        The position and velocity vectors.
+    dt : float
+        Time step.
+    acc_func : callable
+        Function that accepts position and returns acceleration.
+    acc_start : ndarray, optional
+        Acceleration at the start of the step. If provided, saves one density
+        evaluation.
+
+    Returns
+    -------
+    pos_new, vel_new : ndarray
+        Updated position and velocity vectors.
     """
     pos, vel = posvel
     if acc_start is not None:
@@ -60,10 +74,26 @@ class SmallBodyForceMixin:
 
     @staticmethod
     def leapfrog_kdk(t, posvel, dt, acc_func, acc_start=None):
-        """
-        To save time in acceleration calculation, if you give ``acc_start``, it
-        will use it as the acceleration of the starting point, which is the
-        accelration of the ending point of the last iteration.
+        """ Second-order symplectic Leapfrog (Kick-Drift-Kick) integrator.
+
+        Parameters
+        ----------
+        t : float
+            Current time (unused, kept for compatibility).
+        posvel : 2-element list or tuple of ndarray
+            The position and velocity vectors.
+        dt : float
+            Time step.
+        acc_func : callable
+            Function that accepts position and returns acceleration.
+        acc_start : ndarray, optional
+            Acceleration at the start of the step. If provided, saves one density
+            evaluation.
+
+        Returns
+        -------
+        pos_new, vel_new : ndarray
+            Updated position and velocity vectors.
         """
         pos, vel = posvel
         if acc_start is not None:
@@ -77,10 +107,15 @@ class SmallBodyForceMixin:
 
 
 class MovingParticle(SmallBodyForceMixin):
+    """ Particle moving around a small body.
+    """
     def __init__(self, smallbody, radius=None, mass=None, mass_den=None, r0_radius=0.01):
-        """
+        """ Initialize MovingParticle.
+
         Parameters
         ----------
+        smallbody : OrbitingSmallBody
+            The central body.
         radius, mass, mass_den : float or `~astropy.Quantity`
             The radius, mass, and mass density of the particle. At least two of
             them must be given to solve the mass-radius-density equation for a
@@ -131,7 +166,8 @@ class MovingParticle(SmallBodyForceMixin):
         self._C_FTHR_emis_rsq = C_F_THER*self.smallbody.emissivity.value*self.radius_um**2
 
     def set_func_Qprbar(self, func_Qprbar, func_Qprbar_sun=None):
-        """
+        """ Set Qprbar functions.
+
         Parameters
         ----------
         func_Qprbar : function object
@@ -194,12 +230,21 @@ class MovingParticle(SmallBodyForceMixin):
         self.acc_func(self.trace_pos_xyz[0], append=True)
 
     def acc_func(self, pos_xyz, append=False):
-        """
+        """ Calculate acceleration.
+
         Parameters
         ----------
         pos_xyz : 1-d array of float
             The position in XYZ format in meters units. For performance issue,
             it's recommended to use float than `~astropy.Quantity`.
+        append : bool, optional
+            If True, append the acceleration components to the trace lists.
+            Default is False.
+
+        Returns
+        -------
+        a_all_vec : ndarray
+            The total acceleration vector.
         """
         r_sph, th, ph = cart2sph(*pos_xyz, from_0=True, degree=True, to_lonlat=False)
 
@@ -332,7 +377,7 @@ class MovingParticle(SmallBodyForceMixin):
                     break
 
     def wrapup(self):
-        """ Changes meaningful lists to numpy array
+        """ Changes meaningful lists to numpy array.
         """
         _alltraces = ["trace_pos_xyz", "trace_pos_sph", "trace_vel_xyz", "trace_time",
                       "trace_musun", "trace_temp",

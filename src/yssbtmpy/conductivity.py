@@ -27,9 +27,6 @@ def power_fun(x: F_OR_Q, coeffs: dict = None) -> F_OR_Q:
         The coefficients of the dependence. The keys are the exponents of `x`
         and the values are the coefficients. For example, for `a*x**2 + b*x +
         c/x`, then `coeffs` should be `coeffs = {2: a, 1: b, -1: c}`.
-
-    unit : Unit
-        The unit of the result. Default is dimensionless.
     """
     if isinstance(x, Quantity):
         x = x.value
@@ -156,6 +153,17 @@ class Material:
     @classmethod
     def from_ME22_GB13(cls, spec: str):
         """ Initialize a `Material` instance from the ME22 database.
+
+        Parameters
+        ----------
+        spec : str
+            The species name. One of 'S', 'V', 'E', 'M', 'Met', 'P', 'C', 'Ch',
+            'B', 'K', 'simple'. Case-insensitive.
+
+        Returns
+        -------
+        Material
+            The initialized Material object.
         """
         _consts = dict(f1=0.0518, f2=5.26, chi=0.41, e1=1.34, xi=0.4,
                        gamma_coeffs={1: 6.67e-5}
@@ -473,7 +481,7 @@ def jkr_contact(
         The Poisson's ratio [dimensionless] and Young's modulus [GPa] of the
         sphere. `young` is assumed to be in GPa if `float`.
 
-    gamma_func : function
+    gamma_coeffs : dict
         The coefficients of the temperature dependence for the specific surface
         energy of the sphere (in the unit of J/m^2). The keys are the exponents
         of the temperature and the values are the coefficients. For example, if
@@ -643,6 +651,11 @@ def k_solid_s17(
     xi : float
         The model parameter (1 when perfectly smooth spheres), 0.4 is used by
         MacLennan and Emery (2022).
+
+    Returns
+    -------
+    k_solid : Quantity
+        The solid thermal conductivity in W/m/K.
     """
     r_c = jkr_contact(r=r_grain, temp=temp, prat=prat, ymod=ymod, gamma_coeffs=gamma_coeffs)
     coo = coord_num(porosity)
@@ -700,7 +713,12 @@ def k_gb13(
         0.02 (stat) +- 0.10 (syst).
 
     e1 : float
-        The model parameter (mean-free path fitting by Gundlach and Bl um 2013).
+        The model parameter (mean-free path fitting by Gundlach and Blum 2013).
+
+    Returns
+    -------
+    k_total : Quantity
+        The total thermal conductivity in W/m/K.
     """
     return (k_solid_gb13(r_grain=r_grain, cond_grain=cond_grain, temp=temp,
                          porosity=porosity, prat=prat, ymod=ymod,
