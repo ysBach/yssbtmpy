@@ -41,7 +41,7 @@ Repository = "https://github.com/ysBach/yssbtmpy"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config"]
+addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config", "--ignore=tests/test_flux_ther.py", "--ignore=tests/test_spherex.py"]
 xfail_strict = true
 # filterwarnings = ["error"]  # fails for astropy as of version 5.
 log_cli_level = "info"

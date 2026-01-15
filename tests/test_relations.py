@@ -31,7 +31,7 @@ _test_T = [100, 300, 1000]  # u.K
 # _test_TI = [1, 100, 1000]  # TIU
 
 
-def allclose_Q(a, b, rtol=1.e-5, atol=None, **kwargs):
+def allclose_Q(a, b, rtol=1.e-10, atol=None, **kwargs):
     """ astropy quantity allclose, but with ``assert`` version for testing.
     """
     assert u.allclose(a, b, rtol=rtol, atol=atol, **kwargs)
