@@ -49,12 +49,12 @@ _D2R = np.pi / 180.0
 
 # numba makes it ~3x faster than the pure numpy version.
 @nb.njit(fastmath=True, cache=False)
-def iau_hg_model(alpha, gpar=0.15):
+def iau_hg_model(phase_ang__deg, gpar=0.15):
     """The IAU HG phase function model in intensity (1 at alpha=0).
 
     Parameters
     ----------
-    alpha__deg : array_like
+    phase_ang__deg : array_like
         The phase angle (Sun-Target-Observer angle) in degrees.
 
     gpar : float, optional
@@ -92,14 +92,14 @@ def iau_hg_model(alpha, gpar=0.15):
     Reference: Bowell et al. 1989
     https://ui.adsabs.harvard.edu/abs/1989aste.conf..524B/abstract
     """
-    n = alpha.shape[0]
+    n = phase_ang__deg.shape[0]
     intensity = np.empty(n, dtype=np.float64)
     # onemgpar = 1.0 - gpar
     phi1 = np.empty(n, dtype=np.float64)
     phi2 = np.empty(n, dtype=np.float64)
     for i in range(n):
         # convert degrees to radians
-        ar = np.abs(alpha[i]) * _D2R
+        ar = np.abs(phase_ang__deg[i]) * _D2R
 
         # intermediate trig and weighting terms
         sa = np.sin(ar)
@@ -125,7 +125,7 @@ def iau_hg_model(alpha, gpar=0.15):
 
 
 @nb.njit(fastmath=True, cache=False)
-def iau_hg_mag(hmag, alpha__deg, gpar=0.15, robs=1, rhel=1):
+def iau_hg_mag(hmag, phase_ang__deg, gpar=0.15, robs=1, rhel=1):
     """The IAU HG phase function model in magnitudes scale.
 
     Parameters
@@ -133,7 +133,7 @@ def iau_hg_mag(hmag, alpha__deg, gpar=0.15, robs=1, rhel=1):
     hmag : float
         The absolute magnitude of the object.
 
-    alpha__deg : array_like
+    phase_ang__deg : array_like
         The phase angle (Sun-Target-Observer angle) in degrees.
 
     gpar : float, optional
@@ -151,5 +151,5 @@ def iau_hg_mag(hmag, alpha__deg, gpar=0.15, robs=1, rhel=1):
     return (
         hmag
         + 5 * np.log10(robs * rhel)
-        - 2.5 * np.log10(iau_hg_model(alpha__deg, gpar))
+        - 2.5 * np.log10(iau_hg_model(phase_ang__deg, gpar))
     )

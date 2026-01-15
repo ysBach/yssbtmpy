@@ -14,10 +14,11 @@ __all__ = [
 
 def B_lambda(wlen, temperature, normalized=False):
     """ Calculates black body radiance [W/m2/um/sr]
+
     Parameters
     ----------
     wlen : float or `~Quantity`, `~numpy.ndarray` of such.
-        The wlengths. In um unit if not Quantity.
+        The wavelengths. In um unit if not Quantity.
 
     temperature : float or `~Quantity`
         The temperature. In Kelvin unit if not Quantity. For specific purpose,
@@ -30,8 +31,8 @@ def B_lambda(wlen, temperature, normalized=False):
         normalized.
         Default is `False`.
 
-    Return
-    ------
+    Returns
+    -------
     radiance : ndarray
         The black body radiance [energy/time/area/length/sr] = [W/m2/um/sr] or
         normalized version of it [1/um].
@@ -48,14 +49,17 @@ def B_lambda(wlen, temperature, normalized=False):
 
 def flam2jy(flam_si, wlen):
     """ Convert flux density from [FLAM_SI = W/m2/um = 10 erg/s/cm2/AA] to [Jy].
+
     Parameters
     ----------
     flam_si : array-like
         The flux density in [W/m2/um].
 
     wlen : array-like
-        The wlength in um.
+        The wavelength in um.
 
+    Notes
+    -----
     1Jy = 10-26 W⋅m-2⋅Hz-1
     """
     return 3.33564095e+11 * to_val(flam_si, FLAMU) * to_val(wlen, u.um)**2
@@ -63,14 +67,17 @@ def flam2jy(flam_si, wlen):
 
 def jy2flam(jy, wlen):
     """ Convert flux density from [Jy] to [FLAM_SI = W/m2/um = 10 erg/s/cm2/AA].
+
     Parameters
     ----------
     jy : array-like
         The flux density in [Jy].
 
     wlen : array-like
-        The wlength in um.
+        The wavelength in um.
 
+    Notes
+    -----
     1Jy = 10-26 W⋅m-2⋅Hz-1
     """
     return 299792458.0/((to_val(wlen, u.um)*1.e-6)**2) * to_val(jy, u.Jy)*1.e-32
@@ -78,19 +85,21 @@ def jy2flam(jy, wlen):
 
 def flam2ab(flam, wlen):
     """ Convert flux density from [W/m2/um] to [AB mag].
+
     Parameters
     ----------
     flam : array-like
         The flux density in [W/m2/um].
 
     wlen : array-like
-        The wlength in um.
+        The wavelength in um.
     """
     return jy2ab(flam2jy(to_val(flam, FLAMU), to_val(wlen, u.um)))
 
 
 def jy2ab(jy):
     """ Convert flux density from [Jy] to [AB mag].
+
     Parameters
     ----------
     jy : array-like
@@ -101,6 +110,7 @@ def jy2ab(jy):
 
 def ab2jy(ab):
     """ Convert flux density from [AB mag] to [Jy].
+
     Parameters
     ----------
     ab : array-like
@@ -111,6 +121,7 @@ def ab2jy(ab):
 
 def jy2phot(jy):
     """ Convert flux density from [Jy] to [photon/s/m2].
+
     Parameters
     ----------
     jy : array-like
@@ -122,6 +133,7 @@ def jy2phot(jy):
 
 def ab2phot(ab):
     """ Convert flux density from [AB mag] to [photon/s/m2/um].
+
     Parameters
     ----------
     ab : array-like
@@ -136,8 +148,8 @@ def planck_avg(wlen, val, temp, use_sb=False):
     Parameters
     ----------
     wlen, val : array-like
-        The wlength (um if float) and value of a thing (frequently used
-        example: emissivity or reflectance over wlength) to be averaged.
+        The wavelength (um if float) and value of a thing (frequently used
+        example: emissivity or reflectance over wavelength) to be averaged.
 
     temp : float or `~Quantity`
         The temperature of the Planck function. In Kelvin unit if not Quantity.
@@ -152,8 +164,8 @@ def planck_avg(wlen, val, temp, use_sb=False):
     -----
     Average is
 
-    ..math::
-        \frac{\int B_\lambda(T) val(\lambda) d\lambda}{\int B_\lambda(T) d\lambda}
+    .. math::
+        \\frac{\\int B_\\lambda(T) val(\\lambda) d\\lambda}{\\int B_\\lambda(T) d\\lambda}
     """
     temp = to_val(temp, u.K)
     wlen = to_val(wlen, u.um)

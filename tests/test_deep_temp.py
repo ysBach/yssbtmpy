@@ -6,7 +6,7 @@ import yssbtmpy as tm
 
 def test_deep_temp():
     sb = tm.SmallBody()
-    sb.set_ecl(r_hel=1.1, hel_ecl_lon=0, hel_ecl_lat=0, r_obs=1, obs_ecl_lon=0, obs_ecl_lat=0, alpha=0)
+    sb.set_ecl(r_hel=1.1, hel_ecl_lon=0, hel_ecl_lat=0, r_obs=1, obs_ecl_lon=0, obs_ecl_lat=0, phase_ang=0)
     sb.set_spin(spin_ecl_lon=0, spin_ecl_lat=90, rot_period=6*u.h)
     sb.set_optical(a_bond=0.1, diam_eff=1*u.km, slope_par=0.15, p_vis=tm.AG2p(0.1, 0.15))
     sb.set_thermal(ti=300, emissivity=1)

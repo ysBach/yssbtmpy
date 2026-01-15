@@ -378,9 +378,9 @@ def calc_aspect_ang(
       sign([(-r_obs) x (-r_sun)] \cdot spin) = sign(alpha) = sign(dphi)
 
     where dphi is the longitude difference between sub-solar and sub-observer
-    points. In words, alpha and dphi are positive if we are looking at the
-    morning side. In the calculation, `phase_ang`(alpha) is used only for the
-    calculation of dphi. The sign of alpha is determined within the code and
+    points. In words, phase_ang and dphi are positive if we are looking at the
+    morning side. In the calculation, `phase_ang` is used only for the
+    calculation of dphi. The sign of phase_ang is determined within the code and
     used as `sign*np.abs(phase_ang)`.
     """
     # default aspect angle
@@ -535,7 +535,7 @@ def calc_mu_vals(
         phases: F_OR_Q_OR_ARR, colats: F_OR_Q_OR_ARR, r_sun: F_OR_Q = None,
         full: bool = False
 ) -> np.ndarray:
-    """ The conversion matrix to convert body-fixed frame to surface system.
+    """ Calculates the mu values (cosine of incidence angle).
 
     Parameters
     ----------
@@ -618,6 +618,9 @@ def calc_mu_vals(
 def calc_mu_vals_slope(mu_val_flat, slope, aspect):
     """ Calculates mu value for sloped surface
     Molaro+Byrne 2012 JGRE117 Eq. 6
+
+    .. warning::
+       Not implemented yet.
     """
     pass
 
@@ -660,7 +663,18 @@ def calc_partial_solar_disc_delta_i(incid__deg, r_sun__deg):
 
 
 def calc_partial_solar_disc_range(incid__deg, r_sun__deg, incid_rise__deg, incid_set__deg):
-    """
+    """ Limit the incidence angle range for partial solar disc.
+
+    Parameters
+    ----------
+    incid__deg : array-like
+        The incidence angle in degrees.
+    r_sun__deg : float
+        The solar radius in degrees.
+    incid_rise__deg : float
+        The incidence angle at sunrise in degrees.
+    incid_set__deg : float
+        The incidence angle at sunset in degrees.
     """
     _inc = np.array(incid__deg)
     for _i__deg in _inc:
@@ -817,9 +831,37 @@ def calc_varr_orbit(
         deps: np.ndarray,
         full: bool = False
 ) -> np.ndarray:
-    """
-    rot_period__day : float
-        The rotation period of the asteroid (in days).
+    """ Calculate temperature profile variations over orbit.
+
+    Parameters
+    ----------
+    varrs_init : ndarray
+        The initial temperature profile array.
+    phi0s : ndarray
+        The initial phases.
+    spin_vec_norm : ndarray
+        The normalized spin vector.
+    mat_bf2ss : ndarray
+        The Body-Fixed to Surface System matrix.
+    r_hel_vecs : ndarray
+        The heliocentric vectors.
+    r_hels : ndarray
+        The heliocentric distances.
+    true_anoms__deg : ndarray
+        The true anomalies in degrees.
+    psis__rad : ndarray
+        The rotational phases in radians.
+    thpar1 : float
+        The thermal parameter 1.
+    deps : ndarray
+        The depth steps.
+    full : bool, optional
+        Whether to return full outputs.
+
+    Returns
+    -------
+    varrs_surf, varrs_new, phi_last, mu_vals : tuple
+        The surface temperatures, new temperature profiles, last phases, and mu values.
     """
     n_calc = r_hel_vecs.shape[0]  # must be == true_anoms__deg.size
     n_location = phi0s.shape[0]
@@ -945,7 +987,22 @@ def update_varr(
         deps: np.ndarray,
         mu_sun: float
 ) -> None:
-    """Calculates the v value in usual TPM.
+    """ Updates the temperature profile (v value) using TPM.
+
+    Parameters
+    ----------
+    varr_old : ndarray
+        The temperature profile at the previous timestep.
+    varr_new : ndarray
+        The temperature profile to be updated (in-place).
+    thpar : float
+        The thermal parameter.
+    dlon__rad : float
+        The longitude step in radians.
+    deps : ndarray
+        The depth steps.
+    mu_sun : float
+        The cosine of the incidence angle.
     """
     for i_z in range(1, deps.size - 1):
         varr_new[i_z] = (
@@ -1018,7 +1075,20 @@ def newton_iter_tpm(
 
 @njit
 def check_perm_shadow(mu_suns_lat, mu_sun_min):
-    # Check whether the latitude is under permanent shadow.
+    """ Check whether the latitude is under permanent shadow.
+
+    Parameters
+    ----------
+    mu_suns_lat : ndarray
+        The mu values (cosine of incidence angle) for the latitude over time.
+    mu_sun_min : float
+        The minimum mu value to consider as illuminated.
+
+    Returns
+    -------
+    permanent_shadow : bool
+        True if the latitude is permanently shadowed.
+    """
     permanent_shadow = True
     for k in range(mu_suns_lat.size):
         # If the sun reaches above ``min_elev__deg``, i.e.,
@@ -1222,8 +1292,8 @@ def calc_flux_tpm(fluxarr, wlen, tempsurf, mu_obss, colats, dlat, dlon):
 
 
 @njit(parallel=True)
-def calc_flux_neatm(fluxarr, wlen, temp_eqm, alpha__deg, nlon, nlat):
-    """ Calculates the fulx at given wlen in W/m^2/m
+def calc_flux_neatm(fluxarr, wlen, temp_eqm, phase_ang__deg, nlon, nlat):
+    """ Calculates the flux at given wlen in W/m^2/m (NEATM).
 
     Parameters
     ----------
@@ -1235,22 +1305,19 @@ def calc_flux_neatm(fluxarr, wlen, temp_eqm, alpha__deg, nlon, nlat):
         identical length.
     temp_eqm : float
         The equilibrium temperature in Kelvin.
-    mu_obs : 2-d array
-        The cosine factor for the emission direction to the observer. The value
-        at `tempsurf[i, j]` must be corresponding to the `mu_obs[i, j]`.
-    colats : 1-d array
-        The co-latitude of the surface (in radians unit). Co-latitude is the
-        angle between the pole (spin) vector and the normal vector of the
-        surface of interest.
-    dlat, dlon : float
-        The delta-latitude and -longitude of patches in radian unit.
+    phase_ang__deg : float
+        The phase angle in degrees.
+    nlon : int
+        The number of longitude grid points.
+    nlat : int
+        The number of latitude grid points.
     """
     dlat__rad = PI/nlat
     dlon__rad = 2*PI/nlon
     colats__rad = np.linspace(dlat__rad/2, PI - dlat__rad/2, nlat)
     sin_colats = np.sin(colats__rad)
     cos_lon = np.cos(np.linspace(0, 2*PI - dlon__rad, nlon))
-    cos_lon_alpha = np.cos(np.linspace(0, 2*PI - dlon__rad, nlon) + alpha__deg*D2R)
+    cos_lon_phase_ang = np.cos(np.linspace(0, 2*PI - dlon__rad, nlon) + phase_ang__deg*D2R)
     ilon_min = nlon//4 - 1      # below this longitude, the Sun is below the horizon
     ilon_max = 3*(nlon//4) + 1  # above this longitude, the Sun is below the horizon
 
@@ -1263,7 +1330,7 @@ def calc_flux_neatm(fluxarr, wlen, temp_eqm, alpha__deg, nlon, nlat):
             for j in range(ilon_min, ilon_max + 1):
                 sin_colat = sin_colats[i]
                 cos_isun = -sin_colat*cos_lon[j]
-                cos_iobs = -sin_colat*cos_lon_alpha[j]
+                cos_iobs = -sin_colat*cos_lon_phase_ang[j]
                 if cos_iobs > 0 and cos_isun > 0:
                     tempsurf = temp_eqm*cos_isun**0.25
                     radiance = factor1/(np.expm1(factor2/tempsurf))

@@ -38,7 +38,8 @@ def calc_flux_refl(
     slope_par=0.15, r_hel__au=1, r_obs__au=1,
     wlen_min=0, wlen_max=1000, refl: F_OR_ARR = None, phase_factor=None
 ):
-    """
+    """ Calculates reflected flux.
+
     Parameters
     ----------
     phase_ang__deg : float, Quantity
@@ -103,7 +104,7 @@ def calc_flux_refl(
         #         + "(tm.solar_spec[:, 0])"
         #     )
     if phase_factor is None:
-        phase_factor = iau_hg_model(alpha=np.atleast_1d(phase_ang__deg), gpar=slope_par)
+        phase_factor = iau_hg_model(phase_ang__deg=np.atleast_1d(phase_ang__deg), gpar=slope_par)
     flux_refl = (flux__flam/(r_hel__au)**2
                  * refl*p_vis
                  * (diam_eff__km*500)**2  # *500 is for *1000/2
@@ -116,14 +117,14 @@ def calc_flux_refl(
 
 
 class NEATMBody():
-    def __init__(self, r_hel=1, r_obs=1, alpha=0, temp_eqm_1au=400, temp_eqm=None, skip_quantity=False):
+    def __init__(self, r_hel=1, r_obs=1, phase_ang=0, temp_eqm_1au=400, temp_eqm=None, skip_quantity=False):
         """ Initializes NEATM object
         Parameters
         ----------
         r_hel, r_obs : float, Quantity
             The heliocentric and observer distance (in au if `float`).
 
-        alpha : float, Quantity
+        phase_ang : float, Quantity
             The phase angle (in degrees if `float`).
 
         temp_eqm_1au : float, Quantity
@@ -151,7 +152,7 @@ class NEATMBody():
         if self.skip_quantity:
             self.r_hel = r_hel
             self.r_obs = r_obs
-            self.alpha = alpha
+            self.phase_ang = phase_ang
             if temp_eqm is None:
                 self.temp_eqm_1au = temp_eqm_1au
                 self.temp_eqm = temp_eqm_1au/np.sqrt(r_hel)
@@ -161,7 +162,7 @@ class NEATMBody():
         else:
             self.r_hel = to_quantity(r_hel, u.au)
             self.r_obs = to_quantity(r_obs, u.au)
-            self.alpha = to_quantity(alpha, u.deg)
+            self.phase_ang = to_quantity(phase_ang, u.deg)
             if temp_eqm is None:
                 self.temp_eqm_1au = to_quantity(temp_eqm_1au, u.K)
                 self.temp_eqm = self.temp_eqm_1au/np.sqrt(self.r_hel.value)
@@ -170,8 +171,25 @@ class NEATMBody():
                 self.temp_eqm_1au = self.temp_eqm*np.sqrt(self.r_hel.value)
 
     def calc_flux_ther(self, wlen: float, nlon=360, nlat=90):
-        """
-        The true flux should be scaled by
+        """ Calculates thermal flux.
+
+        Parameters
+        ----------
+        wlen : float or array-like
+            The wavelength(s) in microns.
+        nlon : int, optional
+            Number of longitude grid points. Default is 360.
+        nlat : int, optional
+            Number of latitude grid points. Default is 90.
+
+        Returns
+        -------
+        flux : np.ndarray
+            The thermal flux in W/m^2/um.
+
+        Notes
+        -----
+        The true flux is scaled by
             self.flux_ther * (emissivity(lambda)) * (diam_eff/1km)^2
         and the resulting unit is W/m^2/um.
         """
@@ -183,7 +201,7 @@ class NEATMBody():
                 fluxarr=fluxarr,
                 wlen=_wl,
                 temp_eqm=self.temp_eqm,
-                alpha__deg=self.alpha,
+                phase_ang__deg=self.phase_ang,
                 nlon=nlon,
                 nlat=nlat,
             )
@@ -195,7 +213,7 @@ class NEATMBody():
                 fluxarr=fluxarr,
                 wlen=self.wlen_ther.to_value(u.um),
                 temp_eqm=self.temp_eqm.to_value(u.K),
-                alpha__deg=self.alpha.to_value(u.deg),
+                phase_ang__deg=self.phase_ang.to_value(u.deg),
                 nlon=nlon,
                 nlat=nlat,
             )
@@ -206,18 +224,68 @@ class NEATMBody():
             self.flux_ther *= FLAMU
         return self.flux_ther
 
-    def calc_flux_refl(self, wlen):
-        raise NotImplementedError("This method is not implemented yet.")
+    def calc_flux_refl(self, wlen_min=0, wlen_max=1000, refl: F_OR_ARR = None, phase_factor=None,
+                       solar_spec=SOLAR_SPEC):
+        """
+        wlen_min, wlen_max : float, Quantity, optional.
+            The wavelength in microns (if `float`) to be used. The calculation
+            will be done for wavelengths of ``wlen_min < tm.SOLAR_SPEC[:, 0] <
+            wlen_max``. Default is 0 and 1000.
+            Set to `None` to use the full range of the solar spectrum.
 
+        refl : float, Quantity, functional optional.
+            The reflectance, normalized to 1 at V-band, in linear scale. If not
+            given, it is set to 1 (flat spectrum). If given as a function, it
+            should be a function that accepts wavelength (in microns).
+
+        solar_spec : ndarray, optional.
+            The solar spectrum. If not given, the default is ``tm.SOLAR_SPEC``.
+            If given, it should be a 2D array with the first column as
+            wavelength in microns and the second column as flux in FLAM_SI
+            (W/m^2/um).
+
+        Notes
+        -----
+        At the moment, this functionality is very limited.
+
+        >>> _r = YOUR_REFLECTANCE
+        >>> _w = YOUR_WAVELENGTH  # in microns, same size as _r
+        >>> refl = UnivariateSpline(_w, _l, k=3, s=0, ext="const")(tm.SOLAR_SPEC[:, 0])
+        """
+        self.wlen_refl, self.flux_refl = calc_flux_refl(
+            phase_ang__deg=self.phase_ang.to_value(u.deg),
+            diam_eff__km=self.diam_eff.to_value(u.km),
+            p_vis=self.p_vis,
+            solar_spec=solar_spec,
+            slope_par=self.slope_par.value,
+            r_hel__au=self.r_hel.to_value(u.au),
+            r_obs__au=self.r_obs.to_value(u.au),
+            wlen_min=wlen_min,
+            wlen_max=wlen_max,
+            refl=refl,
+            phase_factor=phase_factor
+        )
 
 
 class OrbitingConvexSlope():
     def __init__(self, thermal_par_1au, spin_ecl, r_hel_vecs, r_obs_vecs,
                  slope=0*u.deg, azimuth=0*u.deg):
-        """ Initializes orbiting column object
+        """ Initializes orbiting column object.
+
         Parameters
         ----------
-        thermal_par_1au
+        thermal_par_1au : float or Quantity
+            Thermal parameter at 1 AU.
+        spin_ecl : Quantity
+            Spin vector in ecliptic coordinates.
+        r_hel_vecs : Quantity
+            Heliocentric position vectors.
+        r_obs_vecs : Quantity
+            Observer-centric position vectors.
+        slope : Quantity, optional
+            Surface slope angle.
+        azimuth : Quantity, optional
+            Surface azimuth angle.
 
         r_hel_vecs : ndarray
             The heliocentric position vectors of the column in the unit of au.
@@ -233,6 +301,7 @@ class OrbitingConvexSlope():
         self.azimuth = to_quantity(azimuth, u.deg)
 
     def propagate(self):
+        """ TODO: Implement propagation. """
         pass
 
 
@@ -267,6 +336,7 @@ class SmallBodyMixin():
             # aux_cos_obs = np.inner(r_obs_hat, self.spin_vec)
             # aspect_ang_obs = (180-np.rad2deg(np.arccos(aux_cos_obs)))*u.deg
 
+            # alpha == phase_ang
             # Using the sign(alpha) convention from DelboM 2004 PhDT p.144,
             # that is, it is + when observer sees the afternoon/evening side.
             # sign([(-r_obs) x (-r_sun)] \cdot spin) = sign(alpha) = sign(dphi)
@@ -563,7 +633,7 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
     -------
     >>> test = tm.SmallBody()
     >>> test.set_ecl(
-    >>>     r_hel=1.5, r_obs=0.5, alpha=0,
+    >>>     r_hel=1.5, r_obs=0.5, phase_ang=0,
     >>>     hel_ecl_lon=0, hel_ecl_lat=0,
     >>>     obs_ecl_lon=0, obs_ecl_lat=0
     >>> )
@@ -582,7 +652,7 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
 
     >>> test = tm.SmallBody()
     >>> test.set_ecl(
-    >>>     r_hel=1.414, r_obs=1, alpha=45,
+    >>>     r_hel=1.414, r_obs=1, phase_ang=45,
     >>>     hel_ecl_lon=45, hel_ecl_lat=0,
     >>>     obs_ecl_lon=90, obs_ecl_lat=0
     >>> )
@@ -677,9 +747,10 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
         self.flux_refl = None
 
     def set_ecl(self, r_hel, hel_ecl_lon, hel_ecl_lat,
-                r_obs, obs_ecl_lon, obs_ecl_lat, alpha,
+                r_obs, obs_ecl_lon, obs_ecl_lat, phase_ang,
                 ephem_equinox='J2000.0', transform_equinox='J2000.0'):
-        """
+        """ Set ecliptic coordinates.
+
         Parameters
         ----------
         r_hel, r_obs : float, Quantity
@@ -690,9 +761,9 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             The heliocentric ecliptic and observer-centric ecliptic longitude
             and latitude (in degrees if `float`).
 
-        alpha : float, Quantity
+        phase_ang : float, Quantity
             The phase angle (Sun-target-observer angle) (in degrees if
-            `float`). It is not trivial to know `alpha` from ecliptic
+            `float`). It is not trivial to know `phase_ang` from ecliptic
             longitudes and latitudes, because the observer is likely not at the
             heliocentric distance of 1 au (i.e., geocenter).
 
@@ -714,7 +785,7 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
         # The obs_ecl values from HORIZONS are observer-centered lambda, beta values.
         self.obs_ecl_lon = to_quantity(obs_ecl_lon, u.deg)
         self.obs_ecl_lat = to_quantity(obs_ecl_lat, u.deg)
-        self.phase_ang = to_quantity(alpha, u.deg)
+        self.phase_ang = to_quantity(phase_ang, u.deg)
 
         # helecl_ref = HeliocentricMeanEcliptic(equinox=transform_equinox)
         # obsecl_geo = SkyCoord(
@@ -743,6 +814,7 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             pass
 
     def set_musuns(self):
+        """ Calculates mu_sun (cosine of incidence angle) for all facets. """
         self.phases = np.linspace(0, 2*PI - self.dlon, self.nlon)*u.rad
         # colats is set s.t. nlat=1 gives colat=90 deg.
         if self.lats is None:
@@ -762,6 +834,7 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
         )
 
     def set_muobss(self):
+        """ Calculates mu_obs (cosine of emission angle) for all facets. """
         self.phases = np.linspace(0, 2*PI - self.dlon, self.nlon)*u.rad
         # colats is set s.t. nlat=1 gives colat=90 deg.
         if self.lats is None:
@@ -841,6 +914,13 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             surface temperature of the previous iteration, to try to guarantee
             the mathematical condition (time average of surface temp = deepest
             temp). Maybe useful for very accurate deep temperature calculation.
+
+        verbose : bool, optional
+            If `True`, print verbose messages.
+
+        in_kelvin : bool, optional
+            If `True`, the temperature is stored in Kelvin. Otherwise in
+            normalized units (T/T_EQM).
 
         atol : float, optional
             The absolute tolerance for the iteration to stop. (Stops if the
@@ -952,7 +1032,10 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
                 self.tempsurf = u_arr[:, :, 0]
 
     def calc_flux_ther(self, wlen: float):
-        """ Calculates flux in W/m^2/um
+        """ Calculates thermal flux in W/m^2/um
+
+        Parameters
+        ----------
         wlen : float, Quantity
             The wavelength in microns (if `float`).
         """
@@ -987,7 +1070,10 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
 
     def calc_flux_refl(self, wlen_min=0, wlen_max=1000, refl: F_OR_ARR = None, phase_factor=None,
                        solar_spec=SOLAR_SPEC):
-        """
+        """ Calculates reflected flux in W/m^2/um
+
+        Parameters
+        ----------
         wlen_min, wlen_max : float, Quantity, optional.
             The wavelength in microns (if `float`) to be used. The calculation
             will be done for wavelengths of ``wlen_min < tm.SOLAR_SPEC[:, 0] <
@@ -1053,7 +1139,7 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
         return self.temp_eqm__K*temp.flatten()
 
     def get_temp_2d(self, colat__deg, lon__deg):
-        """ Return 1d array of temperature.
+        """ Return 2d array of temperature.
 
         Parameters
         ----------
@@ -1077,7 +1163,7 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
             )
 
     def get_musun(self, colat__deg, lon__deg):
-        """ Return 1d array of temperature.
+        """ Return 2d array of mu_sun (cosine of incidence angle).
 
         Parameters
         ----------
@@ -1247,7 +1333,7 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
     @classmethod
     def from_eph(cls, eph_row):
         sb = cls()
-        sb.set_ecl(r_hel=eph_row["r"], r_obs=eph_row["delta"], alpha=eph_row["alpha"],
+        sb.set_ecl(r_hel=eph_row["r"], r_obs=eph_row["delta"], phase_ang=eph_row["alpha"],
                    hel_ecl_lat=eph_row["EclLat"], hel_ecl_lon=eph_row["EclLon"],
                    obs_ecl_lat=eph_row["ObsEclLat"], obs_ecl_lon=eph_row["ObsEclLon"])
         return sb
@@ -1255,39 +1341,8 @@ class SmallBody(SmallBodyMixin, SmallBodyConstTPM):
 
 @dataclass
 class OrbitingSmallBody:
-    id: str | dict[str, float | str]
-    spin_ecl_lon: F_OR_Q = 0
-    spin_ecl_lat: F_OR_Q = 90
-    location: str | dict[str, float | str] = None
-    id_type: str = None
-    epochs: dict | np.ndarray = None
-    query_step: str = "6h"
-    verbose: int = 1
-    # use_quantity = True
-    # ---  albedo related (should be solved)
-    a_bond: F_OR_Q = None
-    p_vis: F_OR_Q = None
-    slope_par: F_OR_Q = 0.15
-    classical: bool = False
-    # ---  scaling temperature related (should be solved)
-    temp_1au: F_OR_Q = None
-    eta_beam: F_OR_Q = 1.
-    emissivity: F_OR_Q = 1.0
-    # ---  thermal_par (theta) related (should be solved)
-    thermal_par_1au: F_OR_Q = None
-    ti: F_OR_Q = None
-    rot_period: F_OR_Q = None
-    # ---  other (TPM related)
-    lonlats: np.ndarray = np.array(((0, 0), (180, 0), (0, 45), (0, -45)))*u.deg
-    deps: np.ndarray = field(default_factory=np.arange(0, 10.1, 0.2))
-    n_per_rot: float = 360
-    n_per_rot_aph: float = 360
-    ignore_stability: bool = False
-    # ---
-    eph_interp_kind: str = "cubic"
-    orb_period: F_OR_Q = None
+    """ A small body orbiting the Sun.
 
-    """
     Parameters
     ----------
     id : str or dict, required
@@ -1328,7 +1383,7 @@ class OrbitingSmallBody:
         orb_period / 2), (3) the auto-determined epochs is ``{"start":
         aphelion, "stop": aphelion+P_orb+1day, "step": query_step}``.
 
-        ..warning::
+        .. warning::
             Currently, only ``epochs=None`` will work as expected.
 
         Either a list of epochs in JD or MJD format or a dictionary defining a
@@ -1346,7 +1401,7 @@ class OrbitingSmallBody:
     verbose : int, optional
         Verbosity level [0-3].
 
-    thermal_par : float or astropy.units.Quantity, optional
+    thermal_par_1au : float or astropy.units.Quantity, optional
         The thermal parameter (theta) of the body. Note that the definition of
         it for the orbiting body is different from the one for the non-orbiting
         body. For the orbiting body, it is defined based on the
@@ -1368,7 +1423,7 @@ class OrbitingSmallBody:
         ``sqrt(kappa/rho*c*omega)``). Default: 0-10 (0.2 separation, total
         50 steps).
 
-    nt : float
+    n_per_rot : float
         The number of phase steps (per rotation) to calculate temperature.
         Default: 360. Recommended to be larger as thermal parameter gets smaller
         (>= 1500 at thermal parameter Theta < 0.1: DelboM 2004 PhDT).
@@ -1378,6 +1433,38 @@ class OrbitingSmallBody:
         (default), the code will raise an error if ``(2pi/nt)/d_dep_max^2 >
         0.5``. ``d_dep`` is the step size of `deps`.
     """
+    id: str | dict[str, float | str]
+    spin_ecl_lon: F_OR_Q = 0
+    spin_ecl_lat: F_OR_Q = 90
+    location: str | dict[str, float | str] = None
+    id_type: str = None
+    epochs: dict | np.ndarray = None
+    query_step: str = "6h"
+    verbose: int = 1
+    # use_quantity = True
+    # ---  albedo related (should be solved)
+    a_bond: F_OR_Q = None
+    p_vis: F_OR_Q = None
+    slope_par: F_OR_Q = 0.15
+    classical: bool = False
+    # ---  scaling temperature related (should be solved)
+    temp_1au: F_OR_Q = None
+    eta_beam: F_OR_Q = 1.
+    emissivity: F_OR_Q = 1.0
+    # ---  thermal_par (theta) related (should be solved)
+    thermal_par_1au: F_OR_Q = None
+    ti: F_OR_Q = None
+    rot_period: F_OR_Q = None
+    # ---  other (TPM related)
+    lonlats: np.ndarray = np.array(((0, 0), (180, 0), (0, 45), (0, -45)))*u.deg
+    deps: np.ndarray = field(default_factory=np.arange(0, 10.1, 0.2))
+    n_per_rot: float = 360
+    n_per_rot_aph: float = 360
+    ignore_stability: bool = False
+    # ---
+    eph_interp_kind: str = "cubic"
+    orb_period: F_OR_Q = None
+
 
     # FIXME: let epoch!=None work properly (because they will not have `self.obj.sbdb`)
     def __post_init__(self):
@@ -1664,7 +1751,7 @@ class OrbitingSmallBody:
             r_obs=None,  # actually a dummy value...
             obs_ecl_lon=None,
             obs_ecl_lat=None,
-            alpha=None
+            phase_ang=None
         )
         _set_sb(self.sb_aph)
         self.sb_aph.calc_temp(full=True, in_kelvin=True, permanent_shadow_u=0.1)

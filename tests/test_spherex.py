@@ -37,7 +37,7 @@ for ti, color in zip([0., 600], "rb"):
     for name, _ls in zip("SC", ['-', '--']):
         _phy = phys[name]
         sb = tm.SmallBody()
-        sb.set_ecl(r_hel=_RH, r_obs=np.sqrt(_RH**2-1), hel_ecl_lon=0, hel_ecl_lat=0, obs_ecl_lon=0, obs_ecl_lat=0, alpha=np.arcsin(1/_RH)*u.rad)
+        sb.set_ecl(r_hel=_RH, r_obs=np.sqrt(_RH**2-1), hel_ecl_lon=0, hel_ecl_lat=0, obs_ecl_lon=0, obs_ecl_lat=0, phase_ang=np.arcsin(1/_RH)*u.rad)
         sb.set_optical(slope_par=0.15, p_vis=_phy["p_vis"], diam_eff=10*u.km)
         sb.set_spin(spin_ecl_lon=0, spin_ecl_lat=90, rot_period=1)
         sb.set_thermal(ti=ti, emissivity=_phy["emis"], eta_beam=1)
