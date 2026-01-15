@@ -1456,8 +1456,8 @@ class OrbitingSmallBody:
     ti: F_OR_Q = None
     rot_period: F_OR_Q = None
     # ---  other (TPM related)
-    lonlats: np.ndarray = np.array(((0, 0), (180, 0), (0, 45), (0, -45)))*u.deg
-    deps: np.ndarray = field(default_factory=np.arange(0, 10.1, 0.2))
+    lonlats: np.ndarray = field(default_factory=lambda: np.array(((0, 0), (180, 0), (0, 45), (0, -45)))*u.deg)
+    deps: np.ndarray = field(default_factory=lambda: np.arange(0, 10.1, 0.2))
     n_per_rot: float = 360
     n_per_rot_aph: float = 360
     ignore_stability: bool = False
