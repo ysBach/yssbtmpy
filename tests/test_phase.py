@@ -19,8 +19,8 @@ from yssbtmpy.scat.phase import iau_hg_model, iau_hg_mag
 # Analytically derived reference values
 # =============================================================================
 # IAU HG model at alpha=0 should give Phi(0) = 1.0 by definition
-# The model uses: Phi = G*Phi1 + (1-G)*Phi2
-# At alpha=0: Phi1(0) = Phi2(0) = 1.0, so Phi(0, G) = G*1 + (1-G)*1 = 1.0
+# The model uses: Phi = (1-G)*Phi1 + G*Phi2
+# At alpha=0: Phi1(0) = Phi2(0) = 1.0, so Phi(0, G) = (1-G)*1 + G*1 = 1.0
 
 # Magnitude formula: m = H + 5*log10(r_obs * r_hel) - 2.5*log10(Phi(alpha, G))
 # At alpha=0, Phi=1, so: m = H + 5*log10(r_obs * r_hel)

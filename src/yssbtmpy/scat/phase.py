@@ -69,7 +69,7 @@ def iau_hg_model(phase_ang__deg, gpar=0.15):
     is given by the following equation:
 
     .. math::
-        \Phi_\mathrm{HG}(\alpha, G) = G \Phi_{HG1}(\alpha) + (1-G) \Phi_{HG2}(\alpha)
+        \Phi_\mathrm{HG}(\alpha, G) = (1-G) \Phi_{HG1}(\alpha) + G \Phi_{HG2}(\alpha)
 
     where
 
@@ -120,7 +120,7 @@ def iau_hg_model(phase_ang__deg, gpar=0.15):
         phi1[i] = w * phi1_s + (1.0 - w) * phi1_l
         phi2[i] = w * phi2_s + (1.0 - w) * phi2_l
 
-    intensity = gpar * phi1 + (1.0 - gpar) * phi2
+    intensity = (1.0 - gpar) * phi1 + gpar * phi2
     return intensity
 
 
