@@ -32,7 +32,7 @@ def test_flux_ther():
 
     wlen = [9.1, 13, 22.6, 30]*u.um
     sb = tm.SmallBody()
-    sb.set_ecl(r_hel=3, r_obs=2, hel_ecl_lon=0, hel_ecl_lat=0, obs_ecl_lon=0, obs_ecl_lat=0, alpha=0)
+    sb.set_ecl(r_hel=3, r_obs=2, hel_ecl_lon=0, hel_ecl_lat=0, obs_ecl_lon=0, obs_ecl_lat=0, phase_ang=0)
     sb.set_spin(spin_ecl_lon=0, spin_ecl_lat=90, rot_period=3*3600)
     sb.set_optical(diam_eff=1*u.km, p_vis=0.2, slope_par=0.15)
     sb.set_thermal(ti=0, emissivity=0.7)
@@ -70,7 +70,7 @@ def test_neatm():
     # SPIN is useless because anyway ti=0.
 
     sb = tm.SmallBody()
-    sb.set_ecl(r_hel=1.134, r_obs=0.153, hel_ecl_lon=0, hel_ecl_lat=0, obs_ecl_lon=0, obs_ecl_lat=0, alpha=9.9)
+    sb.set_ecl(r_hel=1.134, r_obs=0.153, hel_ecl_lon=0, hel_ecl_lat=0, obs_ecl_lon=0, obs_ecl_lat=0, phase_ang=9.9)
     sb.set_optical(slope_par=0.15, p_vis=0.2, diam_eff=23.6*u.km, hmag_vis=tm.pD2H(0.2, 23.6*u.km))
     sb.set_spin(spin_ecl_lon=0, spin_ecl_lat=90, rot_period=6*3600)
     sb.set_thermal(ti=0.1, emissivity=0.9, eta_beam=1.05)
@@ -121,7 +121,7 @@ def test_eros_figure():
         r_hel=1.134, r_obs=0.153,
         hel_ecl_lon=0, hel_ecl_lat=0,
         obs_ecl_lon=0, obs_ecl_lat=0,
-        alpha=9.9
+        phase_ang=9.9
     )
     sb.set_optical(slope_par=0.23, p_vis=0.2, diam_eff=23.6*u.km, hmag_vis=tm.pD2H(0.2, 23.6*u.km))
     sb.set_spin(spin_ecl_lon=0, spin_ecl_lat=90, rot_period=1)
@@ -139,11 +139,12 @@ def test_eros_figure():
     teqm1 = tm.T_eqm(
         a_bond=tm.pG2A(0.20, 0.23), eta_beam=1.05, r_hel=1, emissivity=1
     )
-    sb_neatm = tm.NEATMBody(
-        r_hel=1.134, r_obs=0.153, alpha=9.9, temp_eqm_1au=teqm1
+    sb_neatm = tm.NeatmBody(
+        temp_eqm_1au=teqm1, r_hel__au=1.134, r_obs__au=0.153, phase_ang__deg=9.9
     )
-    sb_neatm.calc_flux_ther(WLEN)
-    ax.plot(WLEN.to_value(u.um), sb_neatm.flux_ther*23.6**2, "r--", lw=1,label="NEATM (this; using Harris 1998)")
+    sb_neatm.set_sphere_grid(n_theta=180, n_phi=360)
+    sb_neatm.calc_flux_ther(WLEN, emissivity=1.0, diam__km=23.6)
+    ax.plot(WLEN.to_value(u.um), sb_neatm.flux_ther, "r--", lw=1,label="NEATM (this; using Harris 1998)")
 
     # Now, using TPM parameters by Hinkle et al. 2022 Icar. 382, 114939.
     #   ti=100 because we have no roughness model (see lowest χ2 models in their Figs. 4).
@@ -155,7 +156,7 @@ def test_eros_figure():
         r_hel=1.134, r_obs=0.153,
         hel_ecl_lon=117, hel_ecl_lat=1.45,
         obs_ecl_lon=113, obs_ecl_lat=10.7,
-        alpha=9.9
+        phase_ang=9.9
     )
     sb_tpm.set_optical(slope_par=0.46, p_vis=0.25, diam_eff=15.6*u.km)
     # ^ slope Gpar from SBDB. diam from H=11.16.
