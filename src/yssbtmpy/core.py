@@ -14,257 +14,28 @@ from scipy.interpolate import (RectBivariateSpline, RegularGridInterpolator,
 from .constants import FLAMU, GG_Q, GG, NOUNIT, PI, R2D, TIU, AU
 from .relations import (p2w, solve_Gq, solve_pAG, solve_pDH, solve_rmrho,
                         solve_temp_eqm, solve_thermal_par)
-from .scat.phase import iau_hg_model
 from .scat.solar import SOLAR_SPEC
 from .util import (F_OR_ARR, F_OR_Q, F_OR_Q_OR_ARR, add_hdr, calc_aspect_ang,
                    calc_flux_tpm, calc_mu_vals, calc_uarr_tpm, calc_varr_orbit,
-                   lonlat2cart, mat_bf2ss, to_quantity, to_val, calc_flux_neatm)
+                   lonlat2cart, mat_bf2ss, to_quantity, to_val)
+from .flux import calc_flux_refl
 
-__all__ = ["calc_flux_refl", "NEATMBody", "SmallBody", "OrbitingSmallBody"]
+__all__ = ["SmallBody", "OrbitingSmallBody"]
 
 # TODO: Maybe we can inherit the Phys class from sbpy to this, so that
 #   the physical data (hmag_vis, Prot, etc) is imported from, e.g., SBDB
 #   by default.
 
 
-_NEATM_FLUX_THER_COEFF = (
-    ((1*u.km).to_value(u.m))**2  # diameter in km to m
-    / 4  # radius to diameter
-    / 1.e+6  # W/m^2/m to W/m^2/um
-) # value = 0.25
-
-def calc_flux_refl(
-    phase_ang__deg, diam_eff__km, p_vis, solar_spec=SOLAR_SPEC,
-    slope_par=0.15, r_hel__au=1, r_obs__au=1,
-    wlen_min=0, wlen_max=1000, refl: F_OR_ARR = None, phase_factor=None
-):
-    """ Calculates reflected flux.
-
-    Parameters
-    ----------
-    phase_ang__deg : float, Quantity
-        The phase angle in degrees.
-
-    diam_eff__km : float, Quantity
-        The effective diameter in km.
-
-    p_vis : float, Quantity
-        The geometric albedo in the V-band.
-
-    solar_spec : ndarray, optional.
-        The solar spectrum. Default is `tm.SOLAR_SPEC`. Otherwise, it must be
-        a 2D array with the first column as the wavelength in microns and the
-        second column as the flux in W/m^2/um (FLAM unit) measured at the
-        distance of 1 au.
-
-    wlen_min, wlen_max : float, Quantity, optional.
-        The wavelength in microns (if `float`) to be used. The calculation
-        will be done for wavelengths of ``wlen_min < tm.SOLAR_SPEC[:, 0] <
-        wlen_max``. Default is 0 and 1000.
-
-    refl : float, Quantity, functional optional.
-        The reflectance, normalized to 1 at V-band, in linear scale. If not
-        given, it is set to 1 (flat spectrum). If given as a function, it
-        should be a function that accepts wavelength (in microns).
-
-    Notes
-    -----
-    At the moment, this functionality is very limited.
-
-    >>> _r = YOUR_REFLECTANCE
-    >>> _w = YOUR_WAVELENGTH  # in microns, same size as _r
-    >>> refl = UnivariateSpline(_w, _l, k=3, s=0, ext="const")(tm.SOLAR_SPEC[:, 0])
-    """
-    wlen_min = to_val(wlen_min, u.um)
-    wlen_max = to_val(wlen_max, u.um)
-    wlen__um = solar_spec[:, 0]
-    if wlen_min is not None and wlen_max is not None:
-        wlen_mask = (wlen__um >= wlen_min) & (wlen__um <= wlen_max)
-        wlen__um = wlen__um[wlen_mask]
-        flux__flam = solar_spec[wlen_mask, 1]
-    else:
-        flux__flam = solar_spec[:, 1]
-
-    wlen_refl = wlen__um*u.um
-
-    if refl is None:
-        refl = 1
-    elif isinstance(refl, (int, float, np.ndarray)):
-        refl = np.atleast_1d(refl)
-    else:  # assume functional
-        refl = refl(wlen__um)
-        # if (refl.size != wlen__um.size):
-        #     raise ValueError(
-        #         "At the moment, `refl` must be given for all the wavelengths of "
-        #         + f"`tm.solar_spec`, which is length {solar_spec.shape[0]}."
-        #         + f" Now {refl.size=}. Fix it by, e.g.,\n"
-        #         + " >>> _r = YOUR_REFLECTANCE\n"
-        #         + " >>> _w = YOUR_WAVELENGTH  # in microns, same size as _r\n"
-        #         + " >>> refl = UnivariateSpline(_w, _l, k=3, s=0, ext='const')"
-        #         + "(tm.solar_spec[:, 0])"
-        #     )
-    if phase_factor is None:
-        phase_factor = iau_hg_model(phase_ang__deg=np.atleast_1d(phase_ang__deg), gpar=slope_par)
-    flux_refl = (flux__flam/(r_hel__au)**2
-                 * refl*p_vis
-                 * (diam_eff__km*500)**2  # *500 is for *1000/2
-                 / (r_obs__au*AU)**2
-                 * phase_factor
-                 ) * FLAMU
-    # solar_spec already is for r_hel = 1au, so for r_hel, it should use u.au.
-    # See, e.g., Eq. 19 of Myhrvold 2018 Icarus, 303, 91.
-    return wlen_refl, flux_refl
 
 
-class NEATMBody():
-    def __init__(self, r_hel=1, r_obs=1, phase_ang=0, temp_eqm_1au=400, temp_eqm=None, skip_quantity=False):
-        """ Initializes NEATM object
-        Parameters
-        ----------
-        r_hel, r_obs : float, Quantity
-            The heliocentric and observer distance (in au if `float`).
 
-        phase_ang : float, Quantity
-            The phase angle (in degrees if `float`).
 
-        temp_eqm_1au : float, Quantity
-            The equilibrium temperature at 1 au (in Kelvin if `float`).
-            If `None`, it is calculated from `temp_eqm`. One and only one of
-            `temp_eqm_1au` and `temp_eqm` must be given.
-            Default is 400 K.
 
-        temp_eqm : float, Quantity
-            The equilibrium temperature at the heliocentric distance (in Kelvin
-            if `float`). If `None`, it is calculated from `temp_eqm_1au`.
-            One and only one of `temp_eqm_1au` and `temp_eqm` must be given.
-            Default is `None`, which means it is calculated from `temp_eqm_1au`.
 
-        skip_quantity : bool
-            If `True`, the input values are not converted to Quantity.
-            The user is responsible to check the unit consistency.
-        """
-        self.skip_quantity = skip_quantity
-        if not ((temp_eqm_1au is None) ^ (temp_eqm is None)):
-            raise ValueError(
-                "One and only one of `temp_eqm_1au` and `temp_eqm` must be given."
-            )
 
-        if self.skip_quantity:
-            self.r_hel = r_hel
-            self.r_obs = r_obs
-            self.phase_ang = phase_ang
-            if temp_eqm is None:
-                self.temp_eqm_1au = temp_eqm_1au
-                self.temp_eqm = temp_eqm_1au/np.sqrt(r_hel)
-            else:
-                self.temp_eqm = temp_eqm
-                self.temp_eqm_1au = temp_eqm*np.sqrt(r_hel)
-        else:
-            self.r_hel = to_quantity(r_hel, u.au)
-            self.r_obs = to_quantity(r_obs, u.au)
-            self.phase_ang = to_quantity(phase_ang, u.deg)
-            if temp_eqm is None:
-                self.temp_eqm_1au = to_quantity(temp_eqm_1au, u.K)
-                self.temp_eqm = self.temp_eqm_1au/np.sqrt(self.r_hel.value)
-            else:
-                self.temp_eqm = to_quantity(temp_eqm, u.K)
-                self.temp_eqm_1au = self.temp_eqm*np.sqrt(self.r_hel.value)
 
-    def calc_flux_ther(self, wlen: float, nlon=360, nlat=90):
-        """ Calculates thermal flux.
 
-        Parameters
-        ----------
-        wlen : float or array-like
-            The wavelength(s) in microns.
-        nlon : int, optional
-            Number of longitude grid points. Default is 360.
-        nlat : int, optional
-            Number of latitude grid points. Default is 90.
-
-        Returns
-        -------
-        flux : np.ndarray
-            The thermal flux in W/m^2/um.
-
-        Notes
-        -----
-        The true flux is scaled by
-            self.flux_ther * (emissivity(lambda)) * (diam_eff/1km)^2
-        and the resulting unit is W/m^2/um.
-        """
-        _wl = np.atleast_1d(wlen)
-        if self.skip_quantity:
-            self.wlen_ther = _wl
-            fluxarr = np.zeros(len(_wl))
-            calc_flux_neatm(
-                fluxarr=fluxarr,
-                wlen=_wl,
-                temp_eqm=self.temp_eqm,
-                phase_ang__deg=self.phase_ang,
-                nlon=nlon,
-                nlat=nlat,
-            )
-            _ro__m = self.r_obs * AU
-        else:
-            self.wlen_ther = to_quantity(_wl, u.um)
-            fluxarr = np.zeros(len(_wl))
-            calc_flux_neatm(
-                fluxarr=fluxarr,
-                wlen=self.wlen_ther.to_value(u.um),
-                temp_eqm=self.temp_eqm.to_value(u.K),
-                phase_ang__deg=self.phase_ang.to_value(u.deg),
-                nlon=nlon,
-                nlat=nlat,
-            )
-            _ro__m = self.r_obs.value * AU
-
-        self.flux_ther = fluxarr*_NEATM_FLUX_THER_COEFF/(_ro__m*_ro__m)
-        if not self.skip_quantity:
-            self.flux_ther *= FLAMU
-        return self.flux_ther
-
-    def calc_flux_refl(self, wlen_min=0, wlen_max=1000, refl: F_OR_ARR = None, phase_factor=None,
-                       solar_spec=SOLAR_SPEC):
-        """
-        wlen_min, wlen_max : float, Quantity, optional.
-            The wavelength in microns (if `float`) to be used. The calculation
-            will be done for wavelengths of ``wlen_min < tm.SOLAR_SPEC[:, 0] <
-            wlen_max``. Default is 0 and 1000.
-            Set to `None` to use the full range of the solar spectrum.
-
-        refl : float, Quantity, functional optional.
-            The reflectance, normalized to 1 at V-band, in linear scale. If not
-            given, it is set to 1 (flat spectrum). If given as a function, it
-            should be a function that accepts wavelength (in microns).
-
-        solar_spec : ndarray, optional.
-            The solar spectrum. If not given, the default is ``tm.SOLAR_SPEC``.
-            If given, it should be a 2D array with the first column as
-            wavelength in microns and the second column as flux in FLAM_SI
-            (W/m^2/um).
-
-        Notes
-        -----
-        At the moment, this functionality is very limited.
-
-        >>> _r = YOUR_REFLECTANCE
-        >>> _w = YOUR_WAVELENGTH  # in microns, same size as _r
-        >>> refl = UnivariateSpline(_w, _l, k=3, s=0, ext="const")(tm.SOLAR_SPEC[:, 0])
-        """
-        self.wlen_refl, self.flux_refl = calc_flux_refl(
-            phase_ang__deg=self.phase_ang.to_value(u.deg),
-            diam_eff__km=self.diam_eff.to_value(u.km),
-            p_vis=self.p_vis,
-            solar_spec=solar_spec,
-            slope_par=self.slope_par.value,
-            r_hel__au=self.r_hel.to_value(u.au),
-            r_obs__au=self.r_obs.to_value(u.au),
-            wlen_min=wlen_min,
-            wlen_max=wlen_max,
-            refl=refl,
-            phase_factor=phase_factor
-        )
 
 
 class OrbitingConvexSlope():

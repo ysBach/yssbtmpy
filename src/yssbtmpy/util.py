@@ -1291,47 +1291,6 @@ def calc_flux_tpm(fluxarr, wlen, tempsurf, mu_obss, colats, dlat, dlon):
                     fluxarr[k] += radiance*mu_obs*area_factor
 
 
-@njit(parallel=True)
-def calc_flux_neatm(fluxarr, wlen, temp_eqm, phase_ang__deg, nlon, nlat):
-    """ Calculates the flux at given wlen in W/m^2/m (NEATM).
 
-    Parameters
-    ----------
-    fluxarr : 1-d array
-        The array to be filled with the flux values. Must have the identical
-        length to `wlen`.
-    wlen : 1-d array
-        The wavelength corresponding to `fluxarr`, in um. Both must have the
-        identical length.
-    temp_eqm : float
-        The equilibrium temperature in Kelvin.
-    phase_ang__deg : float
-        The phase angle in degrees.
-    nlon : int
-        The number of longitude grid points.
-    nlat : int
-        The number of latitude grid points.
-    """
-    dlat__rad = PI/nlat
-    dlon__rad = 2*PI/nlon
-    colats__rad = np.linspace(dlat__rad/2, PI - dlat__rad/2, nlat)
-    sin_colats = np.sin(colats__rad)
-    cos_lon = np.cos(np.linspace(0, 2*PI - dlon__rad, nlon))
-    cos_lon_phase_ang = np.cos(np.linspace(0, 2*PI - dlon__rad, nlon) + phase_ang__deg*D2R)
-    ilon_min = nlon//4 - 1      # below this longitude, the Sun is below the horizon
-    ilon_max = 3*(nlon//4) + 1  # above this longitude, the Sun is below the horizon
 
-    area_factor = np.sin(colats__rad)*dlon__rad*dlat__rad
-    for k in nb.prange(len(wlen)):
-        wl = wlen[k]*1.e-6  # um to m
-        factor1 = 2*HH*CC*CC/wl**5
-        factor2 = (HH*CC)/(KB*wl)
-        for i in range(nlat):
-            for j in range(ilon_min, ilon_max + 1):
-                sin_colat = sin_colats[i]
-                cos_isun = -sin_colat*cos_lon[j]
-                cos_iobs = -sin_colat*cos_lon_phase_ang[j]
-                if cos_iobs > 0 and cos_isun > 0:
-                    tempsurf = temp_eqm*cos_isun**0.25
-                    radiance = factor1/(np.expm1(factor2/tempsurf))
-                    fluxarr[k] += radiance*cos_iobs*area_factor[i]
+
