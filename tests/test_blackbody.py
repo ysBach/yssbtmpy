@@ -121,7 +121,7 @@ class TestBLambda:
         assert np.all(B_norm >= 0)
 
         # Numerical integration should give a finite positive result
-        integral = np.trapz(B_norm, wlen)
+        integral = np.trapezoid(B_norm, wlen)
         assert integral > 0
         assert np.isfinite(integral)
 
@@ -148,7 +148,7 @@ class TestBLambda:
         B = B_lambda(wlen, T)
 
         # Integrate: pi * integral(B_lambda) should equal sigma*T^4
-        integral = PI * np.trapz(B, wlen)
+        integral = PI * np.trapezoid(B, wlen)
         expected = SIGMA_SB * T**4
 
         assert_allclose(integral, expected, rtol=1e-4)
