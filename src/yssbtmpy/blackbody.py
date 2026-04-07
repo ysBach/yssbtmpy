@@ -6,7 +6,8 @@ from .constants import CC, HH, KB, PI, SIGMA_SB, FLAMU
 from .util import to_val
 
 __all__ = [
-    "B_lambda", "flam2jy", "jy2flam", "flam2ab",
+    "B_lambda", "B_lambda_wien", "B_lambda_rj",
+    "flam2jy", "jy2flam", "flam2ab",
     "jy2ab", "ab2jy",
     "jy2phot", "planck_avg"
 ]
@@ -45,6 +46,92 @@ def B_lambda(wlen, temperature, normalized=False):
     if normalized:
         return radiance * PI / (SIGMA_SB*temp**4) * 1.e+6  # [1/um]
     return radiance * 1.e-6  # [W/m2/**um**/sr]
+
+
+def B_lambda_wien(wlen, temperature, normalized=False):
+    """ Wien's approximation to the Planck function [W/m2/um/sr].
+
+    .. math::
+
+        B_\\lambda^W = \\frac{2hc^2}{\\lambda^5} e^{-hc/(\\lambda k T)}
+
+    This is the high-frequency (short-wavelength) limit of the full Planck
+    function.  The fractional error relative to the full Planck function is
+
+    .. math::
+
+        \\frac{B_\\lambda^W}{B_\\lambda} = 1 - e^{-x},
+        \\quad x \\equiv \\frac{hc}{\\lambda k T}
+
+    so the approximation is accurate to < 1 % when x > 4.6
+    (i.e. lambda*T < 3140 um*K, e.g. lambda < 15 um at 200 K).
+
+    Parameters
+    ----------
+    wlen : float or `~Quantity`, `~numpy.ndarray` of such.
+        Wavelength(s) in um (if not Quantity).
+
+    temperature : float or `~Quantity`
+        Temperature in Kelvin (if not Quantity). May be an ndarray.
+
+    normalized : bool
+        Same semantics as `B_lambda`.  The denominator used for normalization
+        is ``SIGMA_SB * T**4 / PI`` (full-Planck total), so the normalized
+        Wien curve does **not** integrate exactly to 1.0.
+        Default is `False`.
+
+    Returns
+    -------
+    radiance : ndarray
+        [W/m2/um/sr] or [1/um] if normalized.
+    """
+    wl = to_val(wlen, u.um) * 1.e-6
+    temp = to_val(temperature, u.K)
+    coeff = 2 * HH * CC**2 / wl**5
+    radiance = coeff * np.exp(-HH * CC / (wl * KB * temp))
+    if normalized:
+        return radiance * PI / (SIGMA_SB * temp**4) * 1.e+6  # [1/um]
+    return radiance * 1.e-6  # [W/m2/um/sr]
+
+
+def B_lambda_rj(wlen, temperature):
+    """ Rayleigh-Jeans approximation to the Planck function [W/m2/um/sr].
+
+    .. math::
+
+        B_\\lambda^{RJ} = \\frac{2 c k T}{\\lambda^4}
+
+    This is the low-frequency (long-wavelength) limit of the full Planck
+    function.  The fractional ratio relative to the full Planck function is
+
+    .. math::
+
+        \\frac{B_\\lambda^{RJ}}{B_\\lambda} = \\frac{x}{e^x - 1},
+        \\quad x \\equiv \\frac{hc}{\\lambda k T}
+
+    so the approximation is accurate to < 1 % when x < 0.14
+    (i.e. lambda*T > 10^5 um*K, e.g. lambda > 500 um at 200 K).
+
+    .. note::
+        The integral of ``B_lambda_rj`` over all wavelengths diverges
+        (ultraviolet catastrophe), so ``normalized`` is not supported.
+
+    Parameters
+    ----------
+    wlen : float or `~Quantity`, `~numpy.ndarray` of such.
+        Wavelength(s) in um (if not Quantity).
+
+    temperature : float or `~Quantity`
+        Temperature in Kelvin (if not Quantity). May be an ndarray.
+
+    Returns
+    -------
+    radiance : ndarray
+        [W/m2/um/sr]
+    """
+    wl = to_val(wlen, u.um) * 1.e-6
+    temp = to_val(temperature, u.K)
+    return (2 * CC * KB * temp / wl**4) * 1.e-6  # [W/m2/um/sr]
 
 
 def flam2jy(flam_si, wlen):
