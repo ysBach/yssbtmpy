@@ -43,8 +43,8 @@ hapke_k_theta_phase = CloughTocher2DInterpolator(
 )
 
 
-_D2R = np.pi / 180.0
-
+def flux_refl_iau_hg():
+    pass
 
 
 # numba makes it ~3x faster than the pure numpy version.
@@ -99,7 +99,7 @@ def iau_hg_model(phase_ang__deg, gpar=0.15):
     phi2 = np.empty(n, dtype=np.float64)
     for i in range(n):
         # convert degrees to radians
-        ar = np.abs(phase_ang__deg[i]) * _D2R
+        ar = np.abs(phase_ang__deg[i]) * D2R
 
         # intermediate trig and weighting terms
         sa = np.sin(ar)
@@ -125,6 +125,14 @@ def iau_hg_model(phase_ang__deg, gpar=0.15):
 
 
 @nb.njit(fastmath=True, cache=False)
+def _iau_hg_mag_core(hmag, phase_ang__deg, gpar, robs, rhel):
+    return (
+        hmag
+        + 5 * np.log10(robs * rhel)
+        - 2.5 * np.log10(iau_hg_model(phase_ang__deg, gpar))
+    )
+
+
 def iau_hg_mag(hmag, phase_ang__deg, gpar=0.15, robs=1, rhel=1):
     """The IAU HG phase function model in magnitudes scale.
 
@@ -148,8 +156,10 @@ def iau_hg_mag(hmag, phase_ang__deg, gpar=0.15, robs=1, rhel=1):
     mag : ndarray
         The apparent magnitude of the object at the given phase angle.
     """
-    return (
-        hmag
-        + 5 * np.log10(robs * rhel)
-        - 2.5 * np.log10(iau_hg_model(phase_ang__deg, gpar))
+    return _iau_hg_mag_core(
+        np.asarray(hmag, dtype=np.float64),
+        np.asarray(phase_ang__deg, dtype=np.float64),
+        np.asarray(gpar, dtype=np.float64),
+        np.asarray(robs, dtype=np.float64),
+        np.asarray(rhel, dtype=np.float64),
     )
